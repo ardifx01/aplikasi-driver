@@ -297,6 +297,26 @@ const Home = () => {
     }
   };
 
+  const tabs = [
+    { value: "booking", label: "Book Vehicle" },
+    { value: "history", label: "Booking History" },
+    { value: "payments", label: "Payments" },
+    { value: "profile", label: "Profile" },
+    { value: "notifications", label: "Notifications" },
+  ];
+
+  const tabRefs = useRef<(HTMLButtonElement | null)[]>([]);
+  useEffect(() => {
+    const index = tabs.findIndex((tab) => tab.value === activeTab);
+    if (index !== -1 && tabRefs.current[index]) {
+      tabRefs.current[index]?.scrollIntoView({
+        behavior: "smooth",
+        inline: "center",
+        block: "nearest",
+      });
+    }
+  }, [activeTab]);
+
   if (loading) {
     return (
       <div className="flex h-screen items-center justify-center bg-background">
