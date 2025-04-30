@@ -131,7 +131,7 @@ const ProfilePage = ({ userId }: ProfilePageProps = {}) => {
       console.error("Logout gagal:", error.message);
       return;
     }
-    navigate("/login");
+    navigate("/");
   };
 
   return (
