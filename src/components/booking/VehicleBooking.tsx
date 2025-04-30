@@ -325,7 +325,6 @@ const VehicleBooking = () => {
 
   return (
     <div className="container mx-auto px-4 py-8 bg-gray-50">
-      </div>
       <div className="mb-8 flex flex-col md:flex-row md:items-center md:justify-between">
         <div>
           <h1 className="text-3xl font-bold text-gray-900">
