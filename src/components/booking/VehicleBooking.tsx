@@ -307,31 +307,24 @@ const VehicleBooking = () => {
     }
   };
 
+  const [searchPlate, setSearchPlate] = useState("");
+
+  {
+    /*filter kendaraan berdasarkan plat nomor*/
+  }
+  useEffect(() => {
+    if (searchPlate.trim() === "") {
+      setFilteredVehicles(availableVehicles);
+    } else {
+      const filtered = availableVehicles.filter((v) =>
+        v.license_plate?.toLowerCase().includes(searchPlate.toLowerCase()),
+      );
+      setFilteredVehicles(filtered);
+    }
+  }, [searchPlate, availableVehicles]);
+
   return (
     <div className="container mx-auto px-4 py-8 bg-gray-50">
-      <div className="mb-4">
-        <Button
-          variant="outline"
-          onClick={handleGoBack}
-          className="flex items-center gap-2"
-        >
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            width="16"
-            height="16"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            className="lucide lucide-arrow-left"
-          >
-            <path d="m12 19-7-7 7-7" />
-            <path d="M19 12H5" />
-          </svg>
-          {language === "id" ? "Kembali" : "Back"}
-        </Button>
       </div>
       <div className="mb-8 flex flex-col md:flex-row md:items-center md:justify-between">
         <div>
@@ -370,6 +363,17 @@ const VehicleBooking = () => {
             {getTranslation("bookingHistory", language)}
           </Button>
         </div>
+      </div>
+
+            {/* kolom mencari kendaraan*/}
+      <div className="mb-4">
+        <Input
+          type="text"
+          placeholder="Cari berdasarkan plat nomor..."
+          value={searchPlate}
+          onChange={(e) => setSearchPlate(e.target.value)}
+          className="w-full max-w-md"
+        />
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-10">
