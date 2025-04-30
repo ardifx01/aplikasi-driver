@@ -241,10 +241,10 @@ const AuthForms = (props) => {
               onValueChange={setActiveTab}
               className="w-full"
             >
-              <TabsList className="grid w-full grid-cols-2 mb-4">
+              {/*<TabsList className="grid w-full grid-cols-2 mb-4">
                 <TabsTrigger value="login">Login</TabsTrigger>
                 <TabsTrigger value="register">Register</TabsTrigger>
-              </TabsList>
+              </TabsList>*/}
 
               <TabsContent value="login" className="mt-0">
                 <form
@@ -435,7 +435,7 @@ const AuthForms = (props) => {
             </Tabs>
           </CardContent>
           <CardFooter className="flex flex-col space-y-4 pt-0">
-            <div className="text-center text-sm text-gray-500">
+            {/*   <div className="text-center text-sm text-gray-500">
               {activeTab === "login" ? (
                 <p>
                   Don't have an account?{" "}
@@ -459,7 +459,7 @@ const AuthForms = (props) => {
                   </button>
                 </p>
               )}
-            </div>
+            </div>*/}
             {props.showSignOut && (
               <Button
                 type="button"
