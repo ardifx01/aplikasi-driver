@@ -430,10 +430,8 @@ const Home = () => {
             </Button>*/}
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8 mt-4 border p-4 rounded-lg bg-card shadow-sm">
-            <h2 className="text-xl font-bold col-span-3 mb-2">
-              Dashboard Overview
-            </h2>
+          <div className="flex flex-col gap-4 mb-8 mt-4 border p-4 rounded-lg bg-card shadow-sm md:grid md:grid-cols-3">
+  <h2 className="text-xl font-bold md:col-span-3 mb-2">Dashboard Overview</h2>
             <Card
               className="cursor-pointer hover:bg-muted/50 transition-colors"
               onClick={() => navigate("/payments")}
