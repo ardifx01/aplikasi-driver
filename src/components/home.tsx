@@ -705,6 +705,35 @@ const Home = () => {
                   <Card>
                     <CardContent className="p-6">
                       {/* isi profile */}
+                      <div className="grid gap-6 md:grid-cols-2">
+                    <div>
+                      <p className="text-sm font-medium text-muted-foreground">
+                        Full Name
+                      </p>
+                      <p className="text-lg">{user.name}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium text-muted-foreground">
+                        Email
+                      </p>
+                      <p className="text-lg">{user.email}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium text-muted-foreground">
+                        Phone Number
+                      </p>
+                      <p className="text-lg">{user.phone_number}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium text-muted-foreground">
+                        License Number
+                      </p>
+                      <p className="text-lg">{user.license_number}</p>
+                    </div>
+                  </div>
+                  <div className="mt-6">
+                    <Button className="w-full sm:w-auto">Edit Profile</Button>
+                  </div>
                     </CardContent>
                   </Card>
                 </TabsContent>
