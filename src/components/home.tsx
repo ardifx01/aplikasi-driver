@@ -509,10 +509,8 @@ const Home = () => {
             </Card>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8 border p-4 rounded-lg bg-card shadow-sm">
-            <h2 className="text-xl font-bold col-span-2 mb-2">
-              Detail Jatuh Tempo
-            </h2>
+          <div className="flex flex-col gap-4 mb-8 border p-4 rounded-lg bg-card shadow-sm md:grid md:grid-cols-2">
+  <h2 className="text-xl font-bold md:col-span-2 mb-2">Detail Jatuh Tempo</h2>
             <Card
               className="cursor-pointer hover:bg-muted/50 transition-colors"
               onClick={() => navigate("/payments")}
