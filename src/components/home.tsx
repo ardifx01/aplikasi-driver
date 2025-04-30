@@ -610,25 +610,6 @@ const Home = () => {
                 Bayar Sekarang
               </Button>
             )}
-
-            <Button
-              variant="outline"
-              onClick={() => {
-                setActiveTab("booking");
-                setTimeout(() => {
-                  const vehicleGroupSection = document.getElementById(
-                    "vehicle-group-listing",
-                  );
-                  if (vehicleGroupSection) {
-                    vehicleGroupSection.scrollIntoView({ behavior: "smooth" });
-                  }
-                }, 100);
-              }}
-              className="flex items-center gap-2"
-            >
-              <ArrowRight className="h-4 w-4" />
-              Lihat Kendaraan
-            </Button>
           </div>
 
           <div className="mb-8" id="vehicle-group-listing">
