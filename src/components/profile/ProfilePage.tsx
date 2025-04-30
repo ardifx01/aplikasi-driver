@@ -9,7 +9,15 @@ import {
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { ArrowLeft, User, Edit, Globe, ArrowUp, ArrowDown } from "lucide-react";
+import {
+  ArrowLeft,
+  User,
+  Edit,
+  Globe,
+  ArrowUp,
+  ArrowDown,
+  LogOut,
+} from "lucide-react";
 import { supabase } from "@/lib/supabase";
 
 interface ProfilePageProps {
@@ -116,6 +124,15 @@ const ProfilePage = ({ userId }: ProfilePageProps = {}) => {
       </div>
     );
   }
+
+  const handleSignOut = async () => {
+    const { error } = await supabase.auth.signOut();
+    if (error) {
+      console.error("Logout gagal:", error.message);
+      return;
+    }
+    navigate("/login");
+  };
 
   return (
     <div className="bg-background p-6 rounded-lg w-full max-w-7xl mx-auto">
@@ -340,6 +357,14 @@ const ProfilePage = ({ userId }: ProfilePageProps = {}) => {
             </div>
           )}
         </CardContent>
+        <Button
+          variant="outline"
+          className="w-full text-destructive border-destructive"
+          onClick={handleSignOut}
+        >
+          <LogOut className="w-4 h-4 mr-2" />
+          Sign Out
+        </Button>
       </Card>
     </div>
   );
