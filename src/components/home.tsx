@@ -794,16 +794,16 @@ const Home = () => {
                 <span className="mt-1 text-xs">Profile</span>
               </Button>
             </Link>
-            <Link to="/notifications" className="block">
-              <Button
-                variant="ghost"
-                className={`flex flex-col items-center justify-center rounded-md p-2 ${activeTab === "notifications" ? "bg-muted" : ""}`}
-                onClick={() => setActiveTab("notifications")}
-              >
-                <Bell className="h-5 w-5" />
-                <span className="mt-1 text-xs">Notif</span>
-              </Button>
-            </Link>
+            <Button
+              variant="ghost"
+              className={`flex flex-col items-center justify-center rounded-md p-2 ${
+                activeTab === "notifications" ? "bg-muted" : ""
+              }`}
+              onClick={() => setActiveTab("notifications")}
+            >
+              <Bell className="h-5 w-5" />
+              <span className="mt-1 text-xs">Notif</span>
+            </Button>
           </div>
         </div>
       )}
