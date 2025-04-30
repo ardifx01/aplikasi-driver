@@ -47,7 +47,7 @@ export const translations: Record<Language, Record<TranslationKey, string>> = {
   },
   id: {
     dashboard: "Portal Pengemudi",
-    bookVehicle: "Pesan Kendaraan1",
+    bookVehicle: "Pesan Kendaraan",
     bookingHistory: "Riwayat Pemesanan",
     payments: "Pembayaran",
     profile: "Profil",
