@@ -616,79 +616,85 @@ const Home = () => {
             </div>
           </div>
 
-          <Tabs
-            value={activeTab}
-            onValueChange={setActiveTab}
-            className="w-full"
-            defaultValue="booking"
-          >
-            <TabsList className="mb-4">
-              <TabsTrigger value="booking">Book Vehicle</TabsTrigger>
-              <TabsTrigger value="history">Booking History</TabsTrigger>
-              <TabsTrigger value="payments">Payments</TabsTrigger>
-              <TabsTrigger value="profile">Profile</TabsTrigger>
-              <TabsTrigger value="notifications">Notifications</TabsTrigger>
-            </TabsList>
+          <div className="w-full">
+            <Tabs
+              value={activeTab}
+              onValueChange={setActiveTab}
+              defaultValue="booking"
+              className="w-full"
+            >
+              {/* Tab Buttons */}
+              <TabsList className="sticky top-0 z-0 w-full flex flex-wrap justify-center md:justify-start gap-2 bg-muted p-2 rounded-lg shadow-sm">
+                {tabs.map((tab) => (
+                  <TabsTrigger
+                    key={tab.value}
+                    value={tab.value}
+                    className={`px-4 py-2 text-sm font-medium rounded-full transition-all duration-200 ${
+                      activeTab === tab.value
+                        ? "bg-primary text-white shadow"
+                        : "bg-white text-muted-foreground hover:bg-accent"
+                    }`}
+                  >
+                    {tab.label}
+                  </TabsTrigger>
+                ))}
+              </TabsList>
+              &nbsp;
+              {/* Tab Panels */}
+              <div className="flex flex-col gap-2 mt-8">
+                <TabsContent
+                  value="booking"
+                  className="relative z-1 bg-white pt-6 pb-4 min-h-[240px]"
+                >
+                  <h2 className="mb-4 text-2xl font-bold">Book a Vehicle</h2>
+                  {user?.id && <VehicleBooking userId={user.id} />}
+                </TabsContent>
 
-            <TabsContent value="booking" className="mt-0">
-              <h2 className="mb-6 text-2xl font-bold">Book a Vehicle</h2>
-              <VehicleBooking userId={user.id} />
-            </TabsContent>
+                <TabsContent
+                  value="history"
+                  className="relative z-0 bg-white pt-6 pb-4 min-h-[240px]"
+                >
+                  <h2 className="mb-6 text-2xl font-bold">Booking History</h2>
+                  <BookingHistory userId={user?.id} />
+                </TabsContent>
 
-            <TabsContent value="history" className="mt-0">
-              <h2 className="mb-6 text-2xl font-bold">Booking History</h2>
-              <BookingHistory userId={user?.id} />
-            </TabsContent>
+                <TabsContent
+                  value="payments"
+                  className="relative z-0 bg-white pt-6 pb-4 min-h-[240px]"
+                >
+                  <h2 className="mb-6 text-2xl font-bold">Payment Tracking</h2>
+                  <PaymentTracking
+                    userId={user?.id}
+                    driverSaldo={driverSaldo}
+                  />
+                </TabsContent>
 
-            <TabsContent value="payments" className="mt-0">
-              <h2 className="mb-6 text-2xl font-bold">Payment Tracking</h2>
-              <PaymentTracking userId={user?.id} driverSaldo={driverSaldo} />
-            </TabsContent>
+                <TabsContent
+                  value="notifications"
+                  className="relative z-0 bg-white pt-6 pb-4 min-h-[240px]"
+                >
+                  <h2 className="mb-6 text-2xl font-bold">
+                    Driver Notifications
+                  </h2>
+                  <DriverNotifications />
+                </TabsContent>
 
-            <TabsContent value="notifications" className="mt-0">
-              <h2 className="mb-6 text-2xl font-bold">Driver Notifications</h2>
-              <DriverNotifications />
-            </TabsContent>
-
-            <TabsContent value="profile" className="mt-0">
-              <h2 className="mb-6 text-2xl font-bold">
-                {getTranslation("profile", language)}
-              </h2>
-              <Card>
-                <CardContent className="p-6">
-                  <div className="grid gap-6 md:grid-cols-2">
-                    <div>
-                      <p className="text-sm font-medium text-muted-foreground">
-                        Full Name
-                      </p>
-                      <p className="text-lg">{user.name}</p>
-                    </div>
-                    <div>
-                      <p className="text-sm font-medium text-muted-foreground">
-                        Email
-                      </p>
-                      <p className="text-lg">{user.email}</p>
-                    </div>
-                    <div>
-                      <p className="text-sm font-medium text-muted-foreground">
-                        Phone Number
-                      </p>
-                      <p className="text-lg">{user.phone_number}</p>
-                    </div>
-                    <div>
-                      <p className="text-sm font-medium text-muted-foreground">
-                        License Number
-                      </p>
-                      <p className="text-lg">{user.license_number}</p>
-                    </div>
-                  </div>
-                  <div className="mt-6">
-                    <Button className="w-full sm:w-auto">Edit Profile</Button>
-                  </div>
-                </CardContent>
-              </Card>
-            </TabsContent>
-          </Tabs>
+                <TabsContent
+                  value="profile"
+                  className="relative z-0 bg-white pt-6 pb-4 min-h-[240px]"
+                >
+                  <h2 className="mb-6 text-2xl font-bold">
+                    {getTranslation("profile", language)}
+                  </h2>
+                  <Card>
+                    <CardContent className="p-6">
+                      {/* isi profile */}
+                    </CardContent>
+                  </Card>
+                </TabsContent>
+              </div>
+            </Tabs>
+          </div>
         </div>
       </div>
 
