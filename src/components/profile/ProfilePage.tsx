@@ -358,13 +358,13 @@ const ProfilePage = ({ userId }: ProfilePageProps = {}) => {
           )}
         </CardContent>
         <Button
-          variant="outline"
-          className="w-full text-destructive border-destructive"
-          onClick={handleSignOut}
-        >
-          <LogOut className="w-4 h-4 mr-2" />
-          Sign Out
-        </Button>
+  variant="outline"
+  className="w-full text-destructive border-destructive"
+  onClick={handleSignOut}
+>
+  <LogOut className="w-4 h-4 mr-2" />
+  Sign Out
+</Button>
       </Card>
     </div>
   );
