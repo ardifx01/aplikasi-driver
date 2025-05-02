@@ -37,7 +37,7 @@ const VehicleGroupListing = () => {
 
         if (error) throw error;
 
-        if (data) {F
+        if (data) {
           // Group vehicles by model and count them
           const groupsByModel: Record<string, VehicleGroup> = {};
 
