@@ -325,8 +325,8 @@ const VehicleBooking = () => {
 
   return (
     <div className="container mx-auto px-4 py-8 bg-gray-50">
-        <div className="mb-4">
-           <Button
+      <div className="mb-4">
+        <Button
           variant="outline"
           onClick={handleGoBack}
           className="flex items-center gap-2"
@@ -388,7 +388,7 @@ const VehicleBooking = () => {
         </div>
       </div>
 
-            {/* kolom mencari kendaraan*/}
+      {/* kolom mencari kendaraan*/}
       <div className="mb-4">
         <Input
           type="text"
@@ -429,23 +429,22 @@ const VehicleBooking = () => {
                       <CardTitle className="text-base font-semibold text-gray-900">
                         {vehicle.name}
                       </CardTitle>
-                      <CardDescription className="flex flex-col gap-1 mt-1 text-sm text-gray-700">
-                        <span className="text-sm text-gray-600">
-                          {vehicle.type}
-                        </span>
-                        {vehicle.make && vehicle.model && (
-                          <span className="text-sm text-gray-700">
-                            {vehicle.make} {vehicle.model}
-                          </span>
-                        )}
-                        {vehicle.license_plate && (
-                          <div className="mt-1">
-                            <span className="text-sm font-bold text-black bg-white px-13 py-1 border-gray-300 inline-block w-fit">
-                              {vehicle.license_plate}
-                            </span>
-                          </div>
-                        )}
+                      <CardDescription className="text-sm text-gray-700">
+                        {vehicle.type}
                       </CardDescription>
+                      {vehicle.make && vehicle.model && (
+                        <div className="text-sm text-gray-700 mt-1">
+                          {vehicle.make} {vehicle.model}
+                        </div>
+                      )}
+                      {/* License plate display outside of CardDescription */}
+                      {vehicle.license_plate && (
+                        <div className="mt-1">
+                          <span className="text-sm font-bold text-black bg-white px-13 py-1 border-gray-300 inline-block w-fit">
+                            {vehicle.license_plate}
+                          </span>
+                        </div>
+                      )}
                     </div>
                     <Badge variant="secondary">
                       <Car className="h-3 w-3 mr-1" />

@@ -412,12 +412,11 @@ const Home = () => {
         </div>
       )}
 
-      <div className="flex-1 overflow-auto p-4 md:p-6">
+      <div className="flex-1 overflow-auto p-4 md:p-6 pt-16 pb-20 md:pt-4 md:pb-4">
         <div className="mx-auto w-full max-w-[420px] md:max-w-6xl px-4">
           <div className="mb-6 flex items-center justify-between">
             <div className="flex items-center space-x-2">
-              <Car className="h-6 w-6 text-primary" />
-              <h1 className="text-lg font-bold">Driver Portal</h1>
+              {/* Car icon and Driver Portal text removed */}
             </div>
             {/*       <Button
               variant="outline"
@@ -733,60 +732,189 @@ const Home = () => {
       </div>
 
       {isMobile && (
-        <div className="fixed bottom-0 left-0 right-0 border-t bg-background p-2">
-          <div className="grid grid-cols-5 gap-1">
-            <Link to="/booking" className="block">
+        <>
+          <div className="fixed top-0 left-0 right-0 z-50 flex items-center justify-between border-b bg-background p-4">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setShowNotifications(!showNotifications)}
+              className="relative"
+            >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="24"
+                height="24"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                className="h-5 w-5"
+              >
+                <line x1="4" x2="20" y1="12" y2="12" />
+                <line x1="4" x2="20" y1="6" y2="6" />
+                <line x1="4" x2="20" y1="18" y2="18" />
+              </svg>
+            </Button>
+            <div></div>
+          </div>
+
+          {showNotifications && (
+            <div
+              className="fixed inset-0 z-40 bg-black/50"
+              onClick={() => setShowNotifications(false)}
+            >
+              <div
+                className="fixed top-0 left-0 bottom-0 z-50 w-4/5 max-w-xs bg-background p-4 shadow-lg overflow-auto"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="flex items-center justify-between mb-6">
+                  <div className="flex items-center space-x-3">
+                    <Avatar>
+                      <AvatarImage
+                        src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${user?.name}`}
+                      />
+                      <AvatarFallback>{user?.name?.charAt(0)}</AvatarFallback>
+                    </Avatar>
+                    <div>
+                      <p className="font-medium">{user?.name}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {user?.email}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                <nav className="space-y-2">
+                  <Button
+                    variant={activeTab === "booking" ? "default" : "ghost"}
+                    className="w-full justify-start"
+                    onClick={() => {
+                      setActiveTab("booking");
+                      setShowNotifications(false);
+                    }}
+                  >
+                    <Car className="mr-2 h-4 w-4" />
+                    Pesan Kendaraan
+                  </Button>
+                  <Button
+                    variant={activeTab === "history" ? "default" : "ghost"}
+                    className="w-full justify-start"
+                    onClick={() => {
+                      setActiveTab("history");
+                      setShowNotifications(false);
+                    }}
+                  >
+                    <Clock className="mr-2 h-4 w-4" />
+                    Riwayat Pemesanan
+                  </Button>
+                  <Button
+                    variant={activeTab === "payments" ? "default" : "ghost"}
+                    className="w-full justify-start"
+                    onClick={() => {
+                      setActiveTab("payments");
+                      setShowNotifications(false);
+                    }}
+                  >
+                    <CreditCard className="mr-2 h-4 w-4" />
+                    Pembayaran
+                  </Button>
+                  <Button
+                    variant={activeTab === "profile" ? "default" : "ghost"}
+                    className="w-full justify-start"
+                    onClick={() => {
+                      setActiveTab("profile");
+                      setShowNotifications(false);
+                    }}
+                  >
+                    <User className="mr-2 h-4 w-4" />
+                    Profil
+                  </Button>
+                  <Button
+                    variant={
+                      activeTab === "notifications" ? "default" : "ghost"
+                    }
+                    className="w-full justify-start"
+                    onClick={() => {
+                      setActiveTab("notifications");
+                      setShowNotifications(false);
+                    }}
+                  >
+                    <Bell className="mr-2 h-4 w-4" />
+                    Notifikasi
+                  </Button>
+
+                  <div className="pt-4 mt-4 border-t">
+                    <Button
+                      variant="outline"
+                      className="w-full justify-start text-destructive"
+                      onClick={handleSignOut}
+                    >
+                      <LogOut className="mr-2 h-4 w-4" />
+                      Sign Out
+                    </Button>
+                  </div>
+                </nav>
+              </div>
+            </div>
+          )}
+
+          <div className="fixed bottom-0 left-0 right-0 border-t bg-background p-2">
+            <div className="grid grid-cols-5 gap-1">
               <Button
                 variant="ghost"
                 className={`flex flex-col items-center justify-center rounded-md p-2 ${activeTab === "booking" ? "bg-muted" : ""}`}
-                onClick={() => setActiveTab("booking")}
+                onClick={() => {
+                  setActiveTab("booking");
+                }}
               >
                 <Car className="h-5 w-5" />
                 <span className="mt-1 text-xs">Book</span>
               </Button>
-            </Link>
-            <Link to="/booking-history" className="block">
               <Button
                 variant="ghost"
                 className={`flex flex-col items-center justify-center rounded-md p-2 ${activeTab === "history" ? "bg-muted" : ""}`}
-                onClick={() => setActiveTab("history")}
+                onClick={() => {
+                  setActiveTab("history");
+                }}
               >
                 <Clock className="h-5 w-5" />
                 <span className="mt-1 text-xs">History</span>
               </Button>
-            </Link>
-            <Link to="/payments" className="block">
               <Button
                 variant="ghost"
                 className={`flex flex-col items-center justify-center rounded-md p-2 ${activeTab === "payments" ? "bg-muted" : ""}`}
-                onClick={() => setActiveTab("payments")}
+                onClick={() => {
+                  setActiveTab("payments");
+                }}
               >
                 <CreditCard className="h-5 w-5" />
                 <span className="mt-1 text-xs">Payments</span>
               </Button>
-            </Link>
-            <Link to="/profile" className="block">
               <Button
                 variant="ghost"
                 className={`flex flex-col items-center justify-center rounded-md p-2 ${activeTab === "profile" ? "bg-muted" : ""}`}
-                onClick={() => setActiveTab("profile")}
+                onClick={() => {
+                  setActiveTab("profile");
+                }}
               >
                 <User className="h-5 w-5" />
                 <span className="mt-1 text-xs">Profile</span>
               </Button>
-            </Link>
-            <Button
-              variant="ghost"
-              className={`flex flex-col items-center justify-center rounded-md p-2 ${
-                activeTab === "notifications" ? "bg-muted" : ""
-              }`}
-              onClick={() => setActiveTab("notifications")}
-            >
-              <Bell className="h-5 w-5" />
-              <span className="mt-1 text-xs">Notif</span>
-            </Button>
+              <Button
+                variant="ghost"
+                className={`flex flex-col items-center justify-center rounded-md p-2 ${
+                  activeTab === "notifications" ? "bg-muted" : ""
+                }`}
+                onClick={() => setShowNotifications(true)}
+              >
+                <Bell className="h-5 w-5" />
+                <span className="mt-1 text-xs">Menu</span>
+              </Button>
+            </div>
           </div>
-        </div>
+        </>
       )}
     </div>
   );

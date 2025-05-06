@@ -751,22 +751,15 @@ const BookingHistory = ({ userId, driverSaldo }: BookingHistoryProps = {}) => {
                                         toggleBookingDetails(booking.id)
                                       }
                                     >
-                                      {expandedBooking === booking.id ? (
-                                        <>
-                                          <ChevronUp className="h-4 w-4 mr-1" />{" "}
-                                          Sembunyikan
-                                        </>
-                                      ) : (
-                                        <>
-                                          <ChevronDown className="h-4 w-4 mr-1" />{" "}
-                                          Detail
-                                        </>
-                                      )}
+                                      <React.Fragment>
+                                        <ChevronDown className="h-4 w-4 mr-1" />{" "}
+                                        Lihat Detail
+                                      </React.Fragment>
                                     </Button>
                                   </TableCell>
                                 </TableRow>
                                 {expandedBooking === booking.id && (
-                                  <TableRow key={`details-${booking.id}`}>
+                                  <TableRow>
                                     <TableCell
                                       colSpan={7}
                                       className="bg-muted/50"
@@ -893,17 +886,10 @@ const BookingHistory = ({ userId, driverSaldo }: BookingHistoryProps = {}) => {
                                 className="w-full justify-center"
                                 onClick={() => toggleBookingDetails(booking.id)}
                               >
-                                {expandedBooking === booking.id ? (
-                                  <>
-                                    <ChevronUp className="h-4 w-4 mr-1" />{" "}
-                                    Sembunyikan Detail
-                                  </>
-                                ) : (
-                                  <>
-                                    <ChevronDown className="h-4 w-4 mr-1" />{" "}
-                                    Lihat Detail
-                                  </>
-                                )}
+                                <React.Fragment>
+                                  <ChevronDown className="h-4 w-4 mr-1" /> Lihat
+                                  Detail
+                                </React.Fragment>
                               </Button>
 
                               {expandedBooking === booking.id && (
