@@ -209,6 +209,14 @@ const VehicleBooking = () => {
           ? driverFee * calculateRentalDuration()
           : 0);
 
+      // Tambahkan fungsi ini sebelum bookingData
+      const formatDateLocal = (date: Date) => {
+        const local = new Date(
+          date.getTime() - date.getTimezoneOffset() * 60000,
+        );
+        return local.toISOString().split("T")[0];
+      };
+
       let bookingData = {
         vehicle_id: selectedVehicle.id,
         driver_option:
@@ -216,6 +224,7 @@ const VehicleBooking = () => {
         vehicle_type: selectedVehicle.type,
         booking_date: tomorrow.toISOString().split("T")[0],
         start_time: startTime,
+        return_time: returnTime,
         duration: calculateRentalDuration(),
         status: "pending",
         payment_status: "unpaid",
@@ -223,8 +232,8 @@ const VehicleBooking = () => {
         total_amount: calculatedTotalAmount,
         paid_amount: 0,
         remaining_payments: calculatedTotalAmount,
-        start_date: pickupDate.toISOString().split("T")[0],
-        end_date: returnDate.toISOString().split("T")[0],
+        start_date: formatDateLocal(pickupDate),
+        end_date: formatDateLocal(returnDate),
         user_id: user.id,
         vehicle_name:
           selectedVehicle.name ||
@@ -244,7 +253,7 @@ const VehicleBooking = () => {
           };
         }
       }
-
+      console.log("returnDate:", returnDate);
       console.log("Booking data to be inserted:", bookingData);
       const { data, error } = await supabase
         .from("bookings")
@@ -504,8 +513,8 @@ const VehicleBooking = () => {
                 </DialogTitle>
                 <DialogDescription>
                   {language === "id"
-                    ? `Lengkapi formulir di bawah untuk memesan ${selectedVehicle?.name} untuk perjalanan Anda.`
-                    : `Complete the form below to book ${selectedVehicle?.name} for your trip.`}
+                    ? `Lengkapi formulir di bawah untuk memesan ${selectedVehicle?.make} untuk perjalanan Anda.`
+                    : `Complete the form below to book ${selectedVehicle?.make} for your trip.`}
                 </DialogDescription>
               </DialogHeader>
               <div className="grid gap-6 py-4">
@@ -609,8 +618,14 @@ const VehicleBooking = () => {
                               mode="single"
                               selected={returnDate}
                               onSelect={(date) => {
-                                setReturnDate(date || tomorrow);
-                                setReturnDateOpen(false);
+                                if (date && date >= pickupDate) {
+                                  setReturnDate(date);
+                                  setReturnDateOpen(false);
+                                } else {
+                                  alert(
+                                    "Tanggal pengembalian tidak boleh lebih awal dari tanggal pengambilan.",
+                                  );
+                                }
                               }}
                               initialFocus
                             />
@@ -629,10 +644,10 @@ const VehicleBooking = () => {
                       </Label>
                       <div className="relative">
                         <Input
-                          id="pickup-time"
+                          id="start_time"
                           type="time"
-                          value={pickupTime}
-                          onChange={(e) => setPickupTime(e.target.value)}
+                          value={startTime}
+                          onChange={(e) => setStartTime(e.target.value)}
                           min="06:00"
                           max="22:00"
                           className="pl-10"
@@ -649,7 +664,7 @@ const VehicleBooking = () => {
                       </Label>
                       <div className="relative">
                         <Input
-                          id="return-time"
+                          id="return_time"
                           type="time"
                           value={returnTime}
                           onChange={(e) => setReturnTime(e.target.value)}
