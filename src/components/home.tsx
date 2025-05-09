@@ -291,7 +291,7 @@ const Home = () => {
       if (error) throw error;
       setUser(null);
       window.location.href =
-        "https://recursing-shannon1-afnjp.view-3.tempo-dev.app/";
+        "https://web.travelinairport.com/";
     } catch (error) {
       console.error("Error signing out:", error);
     }
