@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, Fragment } from "react";
 import { useNavigate } from "react-router-dom";
 import { createClient } from "@supabase/supabase-js";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -74,7 +74,8 @@ interface Payment {
   amount: number;
   paid_amount?: number;
   status: "paid" | "pending" | "overdue";
-  date: Date;
+  date: Date | null;
+
   due_date?: Date;
   transaction_id?: string;
   payment_method?: string;
@@ -135,6 +136,8 @@ const BookingHistory = ({ userId, driverSaldo }: BookingHistoryProps = {}) => {
         let query = supabase.from("bookings").select(
           `
             id,
+            license_plate,
+            make,
             status,
             booking_date,
             total_amount,
@@ -172,6 +175,8 @@ const BookingHistory = ({ userId, driverSaldo }: BookingHistoryProps = {}) => {
           payment_method: booking.payment_method || "Unknown",
           total_amount: booking.total_amount || 0,
           user_id: booking.user_id,
+          license_plate: booking.license_plate,
+          vehicle_make: booking.make || "Unknown Make",
         }));
 
         setMockBookings(formattedBookings);
@@ -202,7 +207,9 @@ const BookingHistory = ({ userId, driverSaldo }: BookingHistoryProps = {}) => {
         setLoading(true);
         let query = supabase
           .from("payments")
-          .select("*, bookings(vehicle_name)");
+          .select(
+            "id, booking_id, amount, paid_amount, status, created_at, due_date, transaction_id, payment_method, bookings(vehicle_name)",
+          );
 
         // Apply date filter if set
         if (dateRange.from) {
@@ -220,7 +227,7 @@ const BookingHistory = ({ userId, driverSaldo }: BookingHistoryProps = {}) => {
         if (error) {
           throw error;
         }
-
+        console.log("Raw payment data:", data);
         console.log("Payments data:", data);
 
         // Transform the data to match our Payment interface
@@ -231,7 +238,7 @@ const BookingHistory = ({ userId, driverSaldo }: BookingHistoryProps = {}) => {
           amount: payment.amount || 0,
           paid_amount: payment.paid_amount,
           status: payment.status || "pending",
-          date: new Date(payment.date),
+          date: payment.created_at ? new Date(payment.created_at) : null,
           due_date: payment.due_date ? new Date(payment.due_date) : undefined,
           transaction_id: payment.transaction_id,
           payment_method: payment.payment_method,
@@ -355,21 +362,42 @@ const BookingHistory = ({ userId, driverSaldo }: BookingHistoryProps = {}) => {
   };
 
   // Format date safely using dayjs for consistency
-  const formatDate = (date: Date | undefined, formatStr: string): string => {
-    if (!date || !isValidDate(date)) return "Invalid date";
+  const formatDate = (date: any, formatStr: string): string => {
     try {
-      // Use dayjs for consistent formatting across the app
-      if (formatStr === "PPP") {
-        return dayjs(date).format("DD/MM/YYYY");
-      } else if (formatStr === "dd MMM yyyy") {
-        return dayjs(date).format("DD MMM YYYY");
-      } else if (formatStr === "yyyy-MM-dd") {
-        return dayjs(date).format("YYYY-MM-DD");
-      }
-      // Fallback to date-fns for other formats
-      return format(date, formatStr);
+      const parsed = dayjs(date); // tanpa .add()
+
+      if (!parsed.isValid()) return "Invalid date";
+
+      if (formatStr === "PPP") return parsed.format("DD/MM/YYYY");
+      if (formatStr === "dd MMM yyyy") return parsed.format("DD MMM YYYY");
+      if (formatStr === "yyyy-MM-dd") return parsed.format("YYYY-MM-DD");
+
+      return parsed.format(formatStr);
     } catch (error) {
       console.error("Error formatting date:", error);
+      return "Invalid date";
+    }
+  };
+
+  const calculateEndDate = (booking: Booking): string => {
+    try {
+      if (!isValidDate(booking.booking_date)) return "Invalid date";
+      const dateStr = dayjs(booking.booking_date).format("YYYY-MM-DD");
+      const [hours, minutes] = booking.start_time.split(":").map(Number);
+      const startDateTime = new Date(`${dateStr}T${booking.start_time}`);
+      startDateTime.setHours(hours);
+      startDateTime.setMinutes(minutes);
+      const endDate = new Date(
+        startDateTime.getTime() + booking.duration * 60 * 60 * 1000,
+      );
+
+      return endDate.toLocaleDateString("id-ID", {
+        day: "2-digit",
+        month: "long",
+        year: "numeric",
+      });
+    } catch (error) {
+      console.error("Error calculating end date:", error);
       return "Invalid date";
     }
   };
@@ -378,14 +406,14 @@ const BookingHistory = ({ userId, driverSaldo }: BookingHistoryProps = {}) => {
   const calculateEndTime = (booking: Booking): string => {
     try {
       if (!isValidDate(booking.booking_date)) return "Invalid time";
-      const dateStr = dayjs(booking.booking_date).format("YYYY-MM-DD");
-      if (dateStr === "Invalid date") return "Invalid time";
+      const startDate = dayjs(
+        `${dayjs(booking.booking_date).format("YYYY-MM-DD")}T${booking.start_time}`,
+      );
 
-      const startDateTime = new Date(`${dateStr}T${booking.start_time}`);
-      if (!isValidDate(startDateTime)) return "Invalid time";
+      // Anggap durasi dalam satuan hari
+      const endDate = startDate.add(booking.duration, "day");
 
-      const endHour = startDateTime.getHours() + booking.duration;
-      return `${endHour}:00`;
+      return endDate.format("DD MMM YYYY, HH:mm");
     } catch (error) {
       console.error("Error calculating end time:", error);
       return "Invalid time";
@@ -475,6 +503,8 @@ const BookingHistory = ({ userId, driverSaldo }: BookingHistoryProps = {}) => {
     setDate(undefined);
     setVehicleFilter("all");
     setSearchQuery("");
+    setHistorySearchQuery("");
+    setRemainingSearchQuery("");
   };
 
   // Calculate total paid amount
@@ -590,7 +620,7 @@ const BookingHistory = ({ userId, driverSaldo }: BookingHistoryProps = {}) => {
       )}
 
       {!loading && !error && (
-        <>
+        <div>
           <div className="flex justify-between items-center mb-4">
             <Button
               variant="ghost"
@@ -729,7 +759,7 @@ const BookingHistory = ({ userId, driverSaldo }: BookingHistoryProps = {}) => {
                                     )}
                                   </TableCell>
                                   <TableCell>{booking.start_time}</TableCell>
-                                  <TableCell>{booking.duration} jam</TableCell>
+                                  <TableCell>{booking.duration} Hari</TableCell>
                                   <TableCell>
                                     <Badge
                                       variant={getStatusBadgeVariant(
@@ -747,14 +777,15 @@ const BookingHistory = ({ userId, driverSaldo }: BookingHistoryProps = {}) => {
                                     <Button
                                       variant="ghost"
                                       size="sm"
+                                      className="w-full justify-center"
                                       onClick={() =>
                                         toggleBookingDetails(booking.id)
                                       }
                                     >
-                                      <React.Fragment>
+                                      <div className="flex items-center">
                                         <ChevronDown className="h-4 w-4 mr-1" />{" "}
                                         Lihat Detail
-                                      </React.Fragment>
+                                      </div>
                                     </Button>
                                   </TableCell>
                                 </TableRow>
@@ -777,6 +808,13 @@ const BookingHistory = ({ userId, driverSaldo }: BookingHistoryProps = {}) => {
                                           </div>
                                           <div>
                                             <p className="text-sm text-muted-foreground">
+                                              Model Kendaraan
+                                            </p>
+                                            <p> {booking.vehicle_name}</p>
+                                            <p>{booking.license_plate}</p>
+                                          </div>
+                                          <div>
+                                            <p className="text-sm text-muted-foreground">
                                               Metode Pembayaran
                                             </p>
                                             <p>{booking.payment_method}</p>
@@ -785,7 +823,26 @@ const BookingHistory = ({ userId, driverSaldo }: BookingHistoryProps = {}) => {
                                             <p className="text-sm text-muted-foreground">
                                               Waktu Selesai
                                             </p>
-                                            <p>{calculateEndTime(booking)}</p>
+                                            {(() => {
+                                              const endDate = dayjs(
+                                                `${dayjs(booking.booking_date).format("YYYY-MM-DD")}T${booking.start_time}`,
+                                              ).add(booking.duration, "day");
+
+                                              return (
+                                                <div key="end-date-display">
+                                                  <p>
+                                                    Tanggal:{" "}
+                                                    {endDate.format(
+                                                      "DD MMM YYYY",
+                                                    )}
+                                                  </p>
+                                                  <p>
+                                                    Jam:{" "}
+                                                    {endDate.format("HH:mm")}
+                                                  </p>
+                                                </div>
+                                              );
+                                            })()}
                                           </div>
                                           <div>
                                             <p className="text-sm text-muted-foreground">
@@ -886,10 +943,10 @@ const BookingHistory = ({ userId, driverSaldo }: BookingHistoryProps = {}) => {
                                 className="w-full justify-center"
                                 onClick={() => toggleBookingDetails(booking.id)}
                               >
-                                <React.Fragment>
+                                <span className="flex items-center">
                                   <ChevronDown className="h-4 w-4 mr-1" /> Lihat
                                   Detail
-                                </React.Fragment>
+                                </span>
                               </Button>
 
                               {expandedBooking === booking.id && (
@@ -909,7 +966,7 @@ const BookingHistory = ({ userId, driverSaldo }: BookingHistoryProps = {}) => {
                                     </div>
                                     <div>
                                       <p className="text-muted-foreground">
-                                        Waktu Selesai
+                                        Waktu Selesai2
                                       </p>
                                       <p>{calculateEndTime(booking)}</p>
                                     </div>
@@ -1234,7 +1291,9 @@ const BookingHistory = ({ userId, driverSaldo }: BookingHistoryProps = {}) => {
                                       Tanggal Pembayaran
                                     </p>
                                     <p className="text-sm">
-                                      {formatDate(payment.date, "PPP")}
+                                      {payment.date && isValidDate(payment.date)
+                                        ? formatDate(payment.date, "PPP")
+                                        : "Tanggal tidak tersedia"}
                                     </p>
                                   </div>
                                   {payment.due_date && (
@@ -1486,7 +1545,7 @@ const BookingHistory = ({ userId, driverSaldo }: BookingHistoryProps = {}) => {
               </Tabs>
             </CardHeader>
           </Card>
-        </>
+        </div>
       )}
     </div>
   );
