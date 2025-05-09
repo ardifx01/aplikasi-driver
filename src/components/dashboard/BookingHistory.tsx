@@ -925,7 +925,7 @@ const BookingHistory = ({ userId, driverSaldo }: BookingHistoryProps = {}) => {
                                   <p className="text-muted-foreground">
                                     Durasi
                                   </p>
-                                  <p>{booking.duration} jam</p>
+                                  <p>{booking.duration} day</p>
                                 </div>
                                 <div>
                                   <p className="text-muted-foreground">
