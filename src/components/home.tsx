@@ -453,7 +453,7 @@ const Home = () => {
                   value="dashboard"
                   className="relative z-0 bg-white min-h-[240px]"
                 >
-                  <div className="flex flex-col gap-4 mb-8 mt-4 border p-4 rounded-lg bg-card shadow-sm md:grid md:grid-cols-3">
+                  <div className="flex flex-col gap-4 mb-8 mt-12 border p-4 rounded-lg bg-card shadow-sm md:grid md:grid-cols-3">
                     <h2 className="text-xl font-bold md:col-span-3 mb-2">
                       Dashboard Overview
                     </h2>
