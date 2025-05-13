@@ -631,7 +631,7 @@ const BookingHistory = ({ userId, driverSaldo }: BookingHistoryProps = {}) => {
               <span>Kembali</span>
             </Button>
           </div>
-          <Card className="w-full">
+          <Card className="w-full border border-blue-500">
             <CardHeader>
               <CardTitle className="text-2xl font-bold">
                 Riwayat & Pembayaran
@@ -956,6 +956,13 @@ const BookingHistory = ({ userId, driverSaldo }: BookingHistoryProps = {}) => {
                                       <p>{booking.vehicle_type}</p>
                                     </div>
                                     <div>
+                                      <p className="text-sm text-muted-foreground">
+                                        Model Kendaraan
+                                      </p>
+                                      <p> {booking.vehicle_name}</p>
+                                      <p>{booking.license_plate}</p>
+                                    </div>
+                                    <div>
                                       <p className="text-muted-foreground">
                                         Metode Pembayaran
                                       </p>
@@ -963,7 +970,7 @@ const BookingHistory = ({ userId, driverSaldo }: BookingHistoryProps = {}) => {
                                     </div>
                                     <div>
                                       <p className="text-muted-foreground">
-                                        Waktu Selesai2
+                                        Waktu Selesai
                                       </p>
                                       <p>{calculateEndTime(booking)}</p>
                                     </div>

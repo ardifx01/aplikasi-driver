@@ -76,3 +76,21 @@
     @apply bg-background text-foreground;
   }
 }
+
+@media (max-width: 768px) {
+  .p-4 {
+    padding: 0px;
+  }
+}
+
+@media (max-width: 768px) {
+  .border {
+    border-width: 0px;
+  }
+}
+
+@media (max-width: 768px) {
+  .rounded-xl {
+    border-radius: 0rem;
+  }
+}
