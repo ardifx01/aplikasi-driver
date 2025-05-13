@@ -844,6 +844,28 @@ const Home = () => {
                     <Bell className="mr-2 h-4 w-4" />
                     Notifikasi
                   </Button>
+                  <Button
+                    variant={showDashboard ? "default" : "ghost"}
+                    className="w-full justify-start"
+                    onClick={() => {
+                      setShowDashboard(!showDashboard);
+                      setShowNotifications(false);
+                    }}
+                  >
+                    <DollarSign className="mr-2 h-4 w-4" />
+                    Dashboard Overview
+                  </Button>
+                  <Button
+                    variant={showOverdue ? "default" : "ghost"}
+                    className="w-full justify-start"
+                    onClick={() => {
+                      setShowOverdue(!showOverdue);
+                      setShowNotifications(false);
+                    }}
+                  >
+                    <CalendarIcon className="mr-2 h-4 w-4" />
+                    Detail Jatuh Tempo
+                  </Button>
 
                   <div className="pt-4 mt-4 border-t">
                     <Button
