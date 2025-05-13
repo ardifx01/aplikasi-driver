@@ -100,3 +100,9 @@
     background-color: hsl(144.09deg 61.29% 73.09%);
   }
 }
+
+@media (max-width: 768px) {
+  .py-8 {
+    padding-top: 4rem;
+  }
+}
