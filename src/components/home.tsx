@@ -26,7 +26,6 @@ import {
   Bell,
   DollarSign,
   CalendarIcon,
-  ArrowRight,
 } from "lucide-react";
 import AuthForms from "./auth/AuthForms";
 import VehicleBooking from "./booking/VehicleBooking";
@@ -34,6 +33,7 @@ import VehicleGroupListing from "./booking/VehicleGroupListing";
 import BookingHistory from "./dashboard/BookingHistory";
 import PaymentTracking from "./payments/PaymentTracking";
 import DriverNotifications from "./dashboard/DriverNotifications";
+import ProfilePage from "./profile/ProfilePage";
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
@@ -43,6 +43,8 @@ const Home = () => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("booking");
+  const [showDashboard, setShowDashboard] = useState(false);
+  const [showOverdue, setShowOverdue] = useState(false);
   const [language, setLanguage] = useState<Language>("id");
   const [showNotifications, setShowNotifications] = useState(false);
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
@@ -397,6 +399,22 @@ const Home = () => {
               <Bell className="mr-2 h-4 w-4" />
               {getTranslation("notifications", language)}
             </Button>
+            <Button
+              variant={showDashboard ? "default" : "ghost"}
+              className="w-full justify-start"
+              onClick={() => setShowDashboard(!showDashboard)}
+            >
+              <DollarSign className="mr-2 h-4 w-4" />
+              Dashboard Overview
+            </Button>
+            <Button
+              variant={showOverdue ? "default" : "ghost"}
+              className="w-full justify-start"
+              onClick={() => setShowOverdue(!showOverdue)}
+            >
+              <CalendarIcon className="mr-2 h-4 w-4" />
+              Detail Jatuh Tempo
+            </Button>
           </nav>
 
           <div className="absolute bottom-4 w-56">
@@ -414,210 +432,135 @@ const Home = () => {
 
       <div className="flex-1 overflow-auto p-4 md:p-6 pt-16 pb-20 md:pt-4 md:pb-4">
         <div className="mx-auto w-full max-w-[420px] md:max-w-6xl px-4">
-          <div className="mb-6 flex items-center justify-between">
-            <div className="flex items-center space-x-2">
-              {/* Car icon and Driver Portal text removed */}
-            </div>
-            {/*       <Button
-              variant="outline"
-              size="sm"
-              onClick={handleSignOut}
-              className="flex items-center gap-2"
-            >
-              <LogOut className="h-4 w-4" />
-              <span className="hidden md:inline">Logout1</span>
-            </Button>*/}
-          </div>
+          {showDashboard && (
+            <div className="flex flex-col gap-4 mb-8 mt-4 border p-4 rounded-lg bg-card shadow-sm md:grid md:grid-cols-3">
+              <h2 className="text-xl font-bold md:col-span-3 mb-2">
+                Dashboard Overview
+              </h2>
 
-          <div className="flex flex-col gap-4 mb-8 mt-4 border p-4 rounded-lg bg-card shadow-sm md:grid md:grid-cols-3">
-            <h2 className="text-xl font-bold md:col-span-3 mb-2">
-              Dashboard Overview
-            </h2>
+              <Card
+                className="cursor-pointer hover:bg-muted/50 transition-colors"
+                onClick={() => navigate("/payments")}
+              >
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm font-medium text-muted-foreground">
+                    Total Dibayar
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="flex items-center">
+                    <DollarSign className="mr-2 h-4 w-4 text-green-500" />
+                    <span className="text-2xl font-bold">
+                      Rp {totalPaid.toLocaleString()}
+                    </span>
+                  </div>
+                </CardContent>
+              </Card>
 
-            <Card
-              className="cursor-pointer hover:bg-muted/50 transition-colors"
-              onClick={() => navigate("/payments")}
-            >
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium text-muted-foreground">
-                  Total Dibayar
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="flex items-center">
-                  <DollarSign className="mr-2 h-4 w-4 text-green-500" />
-                  <span className="text-2xl font-bold">
-                    Rp {totalPaid.toLocaleString()}
-                  </span>
-                </div>
-              </CardContent>
-            </Card>
+              <Card
+                className="cursor-pointer hover:bg-muted/50 transition-colors"
+                onClick={() => navigate("/payments")}
+              >
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm font-medium text-muted-foreground">
+                    Pembayaran Tertunda
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="flex items-center">
+                    <CreditCard className="mr-2 h-4 w-4 text-yellow-500" />
+                    <span className="text-2xl font-bold">
+                      Rp {totalPending.toLocaleString()}
+                    </span>
+                  </div>
+                </CardContent>
+              </Card>
 
-            <Card
-              className="cursor-pointer hover:bg-muted/50 transition-colors"
-              onClick={() => navigate("/payments")}
-            >
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium text-muted-foreground">
-                  Pembayaran Tertunda
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="flex items-center">
-                  <CreditCard className="mr-2 h-4 w-4 text-yellow-500" />
-                  <span className="text-2xl font-bold">
-                    Rp {totalPending.toLocaleString()}
-                  </span>
-                </div>
-              </CardContent>
-            </Card>
+              <Card
+                className="cursor-pointer hover:bg-muted/50 transition-colors"
+                onClick={() => navigate("/booking-history")}
+              >
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm font-medium text-muted-foreground">
+                    Jatuh Tempo
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="flex items-center">
+                    <CalendarIcon className="mr-2 h-4 w-4 text-blue-500" />
+                    <span className="text-2xl font-bold">
+                      {overduePayments} Pembayaran
+                    </span>
+                  </div>
+                </CardContent>
+              </Card>
 
-            <Card
-              className="cursor-pointer hover:bg-muted/50 transition-colors"
-              onClick={() => navigate("/booking-history")}
-            >
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium text-muted-foreground">
-                  Jatuh Tempo
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="flex items-center">
-                  <CalendarIcon className="mr-2 h-4 w-4 text-blue-500" />
-                  <span className="text-2xl font-bold">
-                    {overduePayments} Pembayaran
-                  </span>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card
-              className="cursor-pointer hover:bg-muted/50 transition-colors"
-              onClick={() => navigate("/profile")}
-            >
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium text-muted-foreground">
-                  Saldo Driver
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="flex items-center">
-                  <DollarSign className="mr-2 h-4 w-4 text-green-500" />
-                  <span className="text-2xl font-bold text-red-500">
-                    Rp {driverSaldo.toLocaleString()}
-                  </span>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-
-          <div className="flex flex-col gap-4 mb-8 border p-4 rounded-lg bg-card shadow-sm md:grid md:grid-cols-2">
-            <h2 className="text-xl font-bold md:col-span-2 mb-2">
-              Detail Jatuh Tempo
-            </h2>
-
-            <Card
-              className="cursor-pointer hover:bg-muted/50 transition-colors"
-              onClick={() => navigate("/payments")}
-            >
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium text-muted-foreground">
-                  Total Jatuh Tempo
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="flex items-center">
-                  <DollarSign className="mr-2 h-4 w-4 text-red-500" />
-                  <span className="text-2xl font-bold">
-                    Rp {overdueAmount.toLocaleString()}
-                  </span>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card
-              className="cursor-pointer hover:bg-muted/50 transition-colors"
-              onClick={() => navigate("/payments")}
-            >
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium text-muted-foreground">
-                  Lama Jatuh Tempo
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="flex items-center">
-                  <Clock className="mr-2 h-4 w-4 text-red-500" />
-                  <span className="text-2xl font-bold">{overdueDays} Hari</span>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-
-          {currentVehicle && (
-            <div className="mb-8 border p-4 rounded-lg bg-card shadow-sm">
-              <h2 className="text-xl font-bold mb-4">Kendaraan Favorit</h2>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <Card className="hover:bg-muted/50 transition-colors cursor-pointer">
-                  <CardHeader className="pb-2">
-                    <CardTitle className="text-sm font-medium text-muted-foreground">
-                      Make/Model
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="flex items-center">
-                      <Car className="mr-2 h-4 w-4 text-blue-500" />
-                      <span className="text-2xl font-bold">
-                        {currentVehicle.make} {currentVehicle.model}
-                      </span>
-                    </div>
-                  </CardContent>
-                </Card>
-
-                <Card className="hover:bg-muted/50 transition-colors cursor-pointer">
-                  <CardHeader className="pb-2">
-                    <CardTitle className="text-sm font-medium text-muted-foreground">
-                      Nomor Plat
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="flex items-center">
-                      <CreditCard className="mr-2 h-4 w-4 text-blue-500" />
-                      <span className="text-2xl font-bold">
-                        {currentVehicle.plate_number || "Tidak Tersedia"}
-                      </span>
-                    </div>
-                  </CardContent>
-                </Card>
-              </div>
+              <Card
+                className="cursor-pointer hover:bg-muted/50 transition-colors"
+                onClick={() => navigate("/profile")}
+              >
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm font-medium text-muted-foreground">
+                    Saldo Driver
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="flex items-center">
+                    <DollarSign className="mr-2 h-4 w-4 text-green-500" />
+                    <span className="text-2xl font-bold text-red-500">
+                      Rp {driverSaldo.toLocaleString()}
+                    </span>
+                  </div>
+                </CardContent>
+              </Card>
             </div>
           )}
 
-          <div className="text-xs text-muted-foreground mb-4">
-            User ID: {user?.id || "Not available"} | Stats loaded:{" "}
-            {totalPaid > 0 || totalPending > 0 || overduePayments > 0
-              ? "Yes"
-              : "No"}
-          </div>
+          {showOverdue && (
+            <div className="flex flex-col gap-4 mb-8 border p-4 rounded-lg bg-card shadow-sm md:grid md:grid-cols-2">
+              <h2 className="text-xl font-bold md:col-span-2 mb-2">
+                Detail Jatuh Tempo
+              </h2>
 
-          <div className="flex flex-col md:flex-row gap-4 mb-8">
-            {hasUnpaidBookings && (
-              <Button
+              <Card
+                className="cursor-pointer hover:bg-muted/50 transition-colors"
                 onClick={() => navigate("/payments")}
-                className="flex items-center gap-2"
               >
-                <CreditCard className="h-4 w-4" />
-                Bayar Sekarang
-              </Button>
-            )}
-          </div>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm font-medium text-muted-foreground">
+                    Total Jatuh Tempo
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="flex items-center">
+                    <DollarSign className="mr-2 h-4 w-4 text-red-500" />
+                    <span className="text-2xl font-bold">
+                      Rp {overdueAmount.toLocaleString()}
+                    </span>
+                  </div>
+                </CardContent>
+              </Card>
 
-          <div className="mb-8" id="vehicle-group-listing">
-            <h2 className="text-xl font-bold mb-4">Model Kendaraan</h2>
-            <div className="border rounded-lg overflow-hidden">
-              <VehicleGroupListing />
+              <Card
+                className="cursor-pointer hover:bg-muted/50 transition-colors"
+                onClick={() => navigate("/payments")}
+              >
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm font-medium text-muted-foreground">
+                    Lama Jatuh Tempo
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="flex items-center">
+                    <Clock className="mr-2 h-4 w-4 text-red-500" />
+                    <span className="text-2xl font-bold">
+                      {overdueDays} Hari
+                    </span>
+                  </div>
+                </CardContent>
+              </Card>
             </div>
-          </div>
-
+          )}
           <div className="w-full">
             <Tabs
               value={activeTab}
@@ -625,46 +568,26 @@ const Home = () => {
               defaultValue="booking"
               className="w-full"
             >
-              {/* Tab Buttons */}
-              <TabsList className="sticky top-0 z-0 w-full flex flex-wrap justify-center md:justify-start gap-2 bg-muted p-2 rounded-lg shadow-sm">
-                {tabs.map((tab) => (
-                  <TabsTrigger
-                    key={tab.value}
-                    value={tab.value}
-                    className={`px-4 py-2 text-sm font-medium rounded-full transition-all duration-200 ${
-                      activeTab === tab.value
-                        ? "bg-primary text-white shadow"
-                        : "bg-white text-muted-foreground hover:bg-accent"
-                    }`}
-                  >
-                    {tab.label}
-                  </TabsTrigger>
-                ))}
-              </TabsList>
-              &nbsp;
               {/* Tab Panels */}
-              <div className="flex flex-col gap-2 mt-8">
+              <div className="flex flex-col gap-2">
                 <TabsContent
                   value="booking"
-                  className="relative z-1 bg-white pt-6 pb-4 min-h-[240px]"
+                  className="relative z-1 bg-white min-h-[240px]"
                 >
-                  <h2 className="mb-4 text-2xl font-bold">Book a Vehicle</h2>
                   {user?.id && <VehicleBooking userId={user.id} />}
                 </TabsContent>
 
                 <TabsContent
                   value="history"
-                  className="relative z-0 bg-white pt-6 pb-4 min-h-[240px]"
+                  className="relative z-0 bg-white min-h-[240px]"
                 >
-                  <h2 className="mb-6 text-2xl font-bold">Booking History</h2>
                   <BookingHistory userId={user?.id} />
                 </TabsContent>
 
                 <TabsContent
                   value="payments"
-                  className="relative z-0 bg-white pt-6 pb-4 min-h-[240px]"
+                  className="relative z-0 bg-white min-h-[240px]"
                 >
-                  <h2 className="mb-6 text-2xl font-bold">Payment Tracking</h2>
                   <PaymentTracking
                     userId={user?.id}
                     driverSaldo={driverSaldo}
@@ -673,57 +596,16 @@ const Home = () => {
 
                 <TabsContent
                   value="notifications"
-                  className="relative z-0 bg-white pt-6 pb-4 min-h-[240px]"
+                  className="relative z-0 bg-white min-h-[240px]"
                 >
-                  <h2 className="mb-6 text-2xl font-bold">
-                    Driver Notifications
-                  </h2>
                   <DriverNotifications />
                 </TabsContent>
 
                 <TabsContent
                   value="profile"
-                  className="relative z-0 bg-white pt-6 pb-4 min-h-[240px]"
+                  className="relative z-0 bg-white min-h-[240px]"
                 >
-                  <h2 className="mb-6 text-2xl font-bold">
-                    {getTranslation("profile", language)}
-                  </h2>
-                  <Card>
-                    <CardContent className="p-6">
-                      {/* isi profile */}
-                      <div className="grid gap-6 md:grid-cols-2">
-                        <div>
-                          <p className="text-sm font-medium text-muted-foreground">
-                            Full Name
-                          </p>
-                          <p className="text-lg">{user.name}</p>
-                        </div>
-                        <div>
-                          <p className="text-sm font-medium text-muted-foreground">
-                            Email
-                          </p>
-                          <p className="text-lg">{user.email}</p>
-                        </div>
-                        <div>
-                          <p className="text-sm font-medium text-muted-foreground">
-                            Phone Number
-                          </p>
-                          <p className="text-lg">{user.phone_number}</p>
-                        </div>
-                        <div>
-                          <p className="text-sm font-medium text-muted-foreground">
-                            License Number
-                          </p>
-                          <p className="text-lg">{user.license_number}</p>
-                        </div>
-                      </div>
-                      <div className="mt-6">
-                        <Button className="w-full sm:w-auto">
-                          Edit Profile
-                        </Button>
-                      </div>
-                    </CardContent>
-                  </Card>
+                  <ProfilePage userId={user?.id} />
                 </TabsContent>
               </div>
             </Tabs>
@@ -734,30 +616,32 @@ const Home = () => {
       {isMobile && (
         <>
           <div className="fixed top-0 left-0 right-0 z-50 flex items-center justify-between border-b bg-background p-4">
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => setShowNotifications(!showNotifications)}
-              className="relative"
-            >
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                width="24"
-                height="24"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                className="h-5 w-5"
+            <div className="flex items-center">
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => setShowNotifications(!showNotifications)}
+                className="relative"
               >
-                <line x1="4" x2="20" y1="12" y2="12" />
-                <line x1="4" x2="20" y1="6" y2="6" />
-                <line x1="4" x2="20" y1="18" y2="18" />
-              </svg>
-            </Button>
-            <div></div>
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  width="24"
+                  height="24"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  className="h-5 w-5"
+                >
+                  <line x1="4" x2="20" y1="12" y2="12" />
+                  <line x1="4" x2="20" y1="6" y2="6" />
+                  <line x1="4" x2="20" y1="18" y2="18" />
+                </svg>
+              </Button>
+              <h1 className="ml-2 text-lg font-bold">Portal Pengemudi</h1>
+            </div>
           </div>
 
           {showNotifications && (
@@ -892,7 +776,7 @@ const Home = () => {
                 }}
               >
                 <Car className="h-5 w-5" />
-                <span className="mt-1 text-xs">Book</span>
+                <span className="mt-1 text-xs">Pesan</span>
               </Button>
               <Button
                 variant="ghost"
@@ -902,7 +786,7 @@ const Home = () => {
                 }}
               >
                 <Clock className="h-5 w-5" />
-                <span className="mt-1 text-xs">History</span>
+                <span className="mt-1 text-xs">Riwayat</span>
               </Button>
               <Button
                 variant="ghost"
@@ -912,7 +796,7 @@ const Home = () => {
                 }}
               >
                 <CreditCard className="h-5 w-5" />
-                <span className="mt-1 text-xs">Payments</span>
+                <span className="mt-1 text-xs">Bayar</span>
               </Button>
               <Button
                 variant="ghost"
@@ -922,17 +806,19 @@ const Home = () => {
                 }}
               >
                 <User className="h-5 w-5" />
-                <span className="mt-1 text-xs">Profile</span>
+                <span className="mt-1 text-xs">Profil</span>
               </Button>
               <Button
                 variant="ghost"
                 className={`flex flex-col items-center justify-center rounded-md p-2 ${
                   activeTab === "notifications" ? "bg-muted" : ""
                 }`}
-                onClick={() => setShowNotifications(true)}
+                onClick={() => {
+                  setActiveTab("notifications");
+                }}
               >
                 <Bell className="h-5 w-5" />
-                <span className="mt-1 text-xs">Menu</span>
+                <span className="mt-1 text-xs">Notif</span>
               </Button>
             </div>
           </div>
