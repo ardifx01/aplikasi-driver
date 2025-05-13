@@ -16,6 +16,7 @@ import LanguageSelector, {
   Language,
 } from "@/components/common/LanguageSelector";
 import { getTranslation, formatCurrency } from "@/lib/language";
+import { useLanguage } from "@/lib/languageContext";
 import {
   Card,
   CardContent,
@@ -52,7 +53,7 @@ const VehicleBooking = () => {
   const typeFilter = searchParams.get("type");
   const modelFilter = searchParams.get("model");
   const makeFilter = searchParams.get("make");
-  const [language, setLanguage] = useState<Language>("id");
+  const { language } = useLanguage();
   const [userSaldo, setUserSaldo] = useState(0);
   const [insufficientFunds, setInsufficientFunds] = useState(false);
 
@@ -380,13 +381,6 @@ const VehicleBooking = () => {
           </p>
         </div>
         <div className="flex items-center gap-4">
-          <div className="relative">
-            <LanguageSelector
-              currentLanguage={language}
-              onLanguageChange={setLanguage}
-              variant="icon"
-            />
-          </div>
           <Button
             onClick={() => navigate("/booking-history")}
             className="mt-4 md:mt-0 flex items-center gap-2 bg-primary hover:bg-primary/90 transition-colors"

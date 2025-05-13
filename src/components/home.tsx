@@ -5,6 +5,7 @@ import { useNavigate } from "react-router-dom";
 import { createClient } from "@supabase/supabase-js";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { getTranslation, formatCurrency } from "@/lib/language";
+import { useLanguage } from "@/lib/languageContext";
 import LanguageSelector, {
   Language,
 } from "@/components/common/LanguageSelector";
@@ -43,9 +44,7 @@ const Home = () => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("booking");
-  const [showDashboard, setShowDashboard] = useState(false);
-  const [showOverdue, setShowOverdue] = useState(false);
-  const [language, setLanguage] = useState<Language>("id");
+  const { language, setLanguage } = useLanguage();
   const [showNotifications, setShowNotifications] = useState(false);
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
   const [totalPaid, setTotalPaid] = useState(0);
@@ -293,7 +292,7 @@ const Home = () => {
       if (error) throw error;
       setUser(null);
       window.location.href =
-        "https://web.travelinairport.com/";
+        "https://recursing-shannon1-afnjp.view-3.tempo-dev.app/";
     } catch (error) {
       console.error("Error signing out:", error);
     }
@@ -305,6 +304,8 @@ const Home = () => {
     { value: "payments", label: "Payments" },
     { value: "profile", label: "Profile" },
     { value: "notifications", label: "Notifications" },
+    { value: "dashboard", label: "Dashboard Overview" },
+    { value: "overdue", label: "Detail Jatuh Tempo" },
   ];
 
   const tabRefs = useRef<(HTMLButtonElement | null)[]>([]);
@@ -400,17 +401,17 @@ const Home = () => {
               {getTranslation("notifications", language)}
             </Button>
             <Button
-              variant={showDashboard ? "default" : "ghost"}
+              variant={activeTab === "dashboard" ? "default" : "ghost"}
               className="w-full justify-start"
-              onClick={() => setShowDashboard(!showDashboard)}
+              onClick={() => setActiveTab("dashboard")}
             >
               <DollarSign className="mr-2 h-4 w-4" />
               Dashboard Overview
             </Button>
             <Button
-              variant={showOverdue ? "default" : "ghost"}
+              variant={activeTab === "overdue" ? "default" : "ghost"}
               className="w-full justify-start"
-              onClick={() => setShowOverdue(!showOverdue)}
+              onClick={() => setActiveTab("overdue")}
             >
               <CalendarIcon className="mr-2 h-4 w-4" />
               Detail Jatuh Tempo
@@ -431,136 +432,14 @@ const Home = () => {
       )}
 
       <div className="flex-1 overflow-auto p-4 md:p-6 pt-16 pb-20 md:pt-4 md:pb-4">
+        <div className="absolute top-4 right-4 z-10">
+          <LanguageSelector
+            currentLanguage={language}
+            onLanguageChange={setLanguage}
+            variant="icon"
+          />
+        </div>
         <div className="mx-auto w-full max-w-[420px] md:max-w-6xl px-4">
-          {showDashboard && (
-            <div className="flex flex-col gap-4 mb-8 mt-4 border p-4 rounded-lg bg-card shadow-sm md:grid md:grid-cols-3">
-              <h2 className="text-xl font-bold md:col-span-3 mb-2">
-                Dashboard Overview
-              </h2>
-
-              <Card
-                className="cursor-pointer hover:bg-muted/50 transition-colors"
-                onClick={() => navigate("/payments")}
-              >
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-sm font-medium text-muted-foreground">
-                    Total Dibayar
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="flex items-center">
-                    <DollarSign className="mr-2 h-4 w-4 text-green-500" />
-                    <span className="text-2xl font-bold">
-                      Rp {totalPaid.toLocaleString()}
-                    </span>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card
-                className="cursor-pointer hover:bg-muted/50 transition-colors"
-                onClick={() => navigate("/payments")}
-              >
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-sm font-medium text-muted-foreground">
-                    Pembayaran Tertunda
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="flex items-center">
-                    <CreditCard className="mr-2 h-4 w-4 text-yellow-500" />
-                    <span className="text-2xl font-bold">
-                      Rp {totalPending.toLocaleString()}
-                    </span>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card
-                className="cursor-pointer hover:bg-muted/50 transition-colors"
-                onClick={() => navigate("/booking-history")}
-              >
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-sm font-medium text-muted-foreground">
-                    Jatuh Tempo
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="flex items-center">
-                    <CalendarIcon className="mr-2 h-4 w-4 text-blue-500" />
-                    <span className="text-2xl font-bold">
-                      {overduePayments} Pembayaran
-                    </span>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card
-                className="cursor-pointer hover:bg-muted/50 transition-colors"
-                onClick={() => navigate("/profile")}
-              >
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-sm font-medium text-muted-foreground">
-                    Saldo Driver
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="flex items-center">
-                    <DollarSign className="mr-2 h-4 w-4 text-green-500" />
-                    <span className="text-2xl font-bold text-red-500">
-                      Rp {driverSaldo.toLocaleString()}
-                    </span>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-          )}
-
-          {showOverdue && (
-            <div className="flex flex-col gap-4 mb-8 border p-4 rounded-lg bg-card shadow-sm md:grid md:grid-cols-2">
-              <h2 className="text-xl font-bold md:col-span-2 mb-2">
-                Detail Jatuh Tempo
-              </h2>
-
-              <Card
-                className="cursor-pointer hover:bg-muted/50 transition-colors"
-                onClick={() => navigate("/payments")}
-              >
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-sm font-medium text-muted-foreground">
-                    Total Jatuh Tempo
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="flex items-center">
-                    <DollarSign className="mr-2 h-4 w-4 text-red-500" />
-                    <span className="text-2xl font-bold">
-                      Rp {overdueAmount.toLocaleString()}
-                    </span>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card
-                className="cursor-pointer hover:bg-muted/50 transition-colors"
-                onClick={() => navigate("/payments")}
-              >
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-sm font-medium text-muted-foreground">
-                    Lama Jatuh Tempo
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="flex items-center">
-                    <Clock className="mr-2 h-4 w-4 text-red-500" />
-                    <span className="text-2xl font-bold">
-                      {overdueDays} Hari
-                    </span>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-          )}
           <div className="w-full">
             <Tabs
               value={activeTab}
@@ -570,6 +449,141 @@ const Home = () => {
             >
               {/* Tab Panels */}
               <div className="flex flex-col gap-2">
+                <TabsContent
+                  value="dashboard"
+                  className="relative z-0 bg-white min-h-[240px]"
+                >
+                  <div className="flex flex-col gap-4 mb-8 mt-4 border p-4 rounded-lg bg-card shadow-sm md:grid md:grid-cols-3">
+                    <h2 className="text-xl font-bold md:col-span-3 mb-2">
+                      Dashboard Overview
+                    </h2>
+
+                    <Card
+                      className="cursor-pointer hover:bg-muted/50 transition-colors"
+                      onClick={() => navigate("/payments")}
+                    >
+                      <CardHeader className="pb-2">
+                        <CardTitle className="text-sm font-medium text-muted-foreground">
+                          Total Dibayar
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="flex items-center">
+                          <DollarSign className="mr-2 h-4 w-4 text-green-500" />
+                          <span className="text-2xl font-bold">
+                            Rp {totalPaid.toLocaleString()}
+                          </span>
+                        </div>
+                      </CardContent>
+                    </Card>
+
+                    <Card
+                      className="cursor-pointer hover:bg-muted/50 transition-colors"
+                      onClick={() => navigate("/payments")}
+                    >
+                      <CardHeader className="pb-2">
+                        <CardTitle className="text-sm font-medium text-muted-foreground">
+                          Pembayaran Tertunda
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="flex items-center">
+                          <CreditCard className="mr-2 h-4 w-4 text-yellow-500" />
+                          <span className="text-2xl font-bold">
+                            Rp {totalPending.toLocaleString()}
+                          </span>
+                        </div>
+                      </CardContent>
+                    </Card>
+
+                    <Card
+                      className="cursor-pointer hover:bg-muted/50 transition-colors"
+                      onClick={() => navigate("/booking-history")}
+                    >
+                      <CardHeader className="pb-2">
+                        <CardTitle className="text-sm font-medium text-muted-foreground">
+                          Jatuh Tempo
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="flex items-center">
+                          <CalendarIcon className="mr-2 h-4 w-4 text-blue-500" />
+                          <span className="text-2xl font-bold">
+                            {overduePayments} Pembayaran
+                          </span>
+                        </div>
+                      </CardContent>
+                    </Card>
+
+                    <Card
+                      className="cursor-pointer hover:bg-muted/50 transition-colors"
+                      onClick={() => navigate("/profile")}
+                    >
+                      <CardHeader className="pb-2">
+                        <CardTitle className="text-sm font-medium text-muted-foreground">
+                          Saldo Driver
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="flex items-center">
+                          <DollarSign className="mr-2 h-4 w-4 text-green-500" />
+                          <span className="text-2xl font-bold text-red-500">
+                            Rp {driverSaldo.toLocaleString()}
+                          </span>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </div>
+                </TabsContent>
+
+                <TabsContent
+                  value="overdue"
+                  className="relative z-0 bg-white min-h-[240px]"
+                >
+                  <div className="flex flex-col gap-4 mb-8 border p-4 rounded-lg bg-card shadow-sm md:grid md:grid-cols-2">
+                    <h2 className="text-xl font-bold md:col-span-2 mb-2">
+                      Detail Jatuh Tempo
+                    </h2>
+
+                    <Card
+                      className="cursor-pointer hover:bg-muted/50 transition-colors"
+                      onClick={() => navigate("/payments")}
+                    >
+                      <CardHeader className="pb-2">
+                        <CardTitle className="text-sm font-medium text-muted-foreground">
+                          Total Jatuh Tempo
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="flex items-center">
+                          <DollarSign className="mr-2 h-4 w-4 text-red-500" />
+                          <span className="text-2xl font-bold">
+                            Rp {overdueAmount.toLocaleString()}
+                          </span>
+                        </div>
+                      </CardContent>
+                    </Card>
+
+                    <Card
+                      className="cursor-pointer hover:bg-muted/50 transition-colors"
+                      onClick={() => navigate("/payments")}
+                    >
+                      <CardHeader className="pb-2">
+                        <CardTitle className="text-sm font-medium text-muted-foreground">
+                          Lama Jatuh Tempo
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="flex items-center">
+                          <Clock className="mr-2 h-4 w-4 text-red-500" />
+                          <span className="text-2xl font-bold">
+                            {overdueDays} Hari
+                          </span>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </div>
+                </TabsContent>
                 <TabsContent
                   value="booking"
                   className="relative z-1 bg-white min-h-[240px]"
@@ -641,6 +655,13 @@ const Home = () => {
                 </svg>
               </Button>
               <h1 className="ml-2 text-lg font-bold">Portal Pengemudi</h1>
+            </div>
+            <div className="flex items-center">
+              <LanguageSelector
+                currentLanguage={language}
+                onLanguageChange={setLanguage}
+                variant="icon"
+              />
             </div>
           </div>
 
@@ -729,10 +750,10 @@ const Home = () => {
                     Notifikasi
                   </Button>
                   <Button
-                    variant={showDashboard ? "default" : "ghost"}
+                    variant={activeTab === "dashboard" ? "default" : "ghost"}
                     className="w-full justify-start"
                     onClick={() => {
-                      setShowDashboard(!showDashboard);
+                      setActiveTab("dashboard");
                       setShowNotifications(false);
                     }}
                   >
@@ -740,10 +761,10 @@ const Home = () => {
                     Dashboard Overview
                   </Button>
                   <Button
-                    variant={showOverdue ? "default" : "ghost"}
+                    variant={activeTab === "overdue" ? "default" : "ghost"}
                     className="w-full justify-start"
                     onClick={() => {
-                      setShowOverdue(!showOverdue);
+                      setActiveTab("overdue");
                       setShowNotifications(false);
                     }}
                   >

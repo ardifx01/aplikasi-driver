@@ -136,11 +136,6 @@ const VehicleGroupListing = () => {
           </p>
         </div>
         <div className="flex items-center gap-4">
-          <div className="relative">
-            <Button variant="outline" size="icon" className="rounded-full">
-              <Globe className="h-4 w-4" />
-            </Button>
-          </div>
           <Button
             onClick={() => navigate("/booking-history")}
             className="mt-4 md:mt-0 flex items-center gap-2 bg-primary hover:bg-primary/90 transition-colors"

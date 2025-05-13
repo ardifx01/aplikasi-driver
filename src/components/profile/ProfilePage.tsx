@@ -145,9 +145,6 @@ const ProfilePage = ({ userId }: ProfilePageProps = {}) => {
           <ArrowLeft className="h-4 w-4" />
           Kembali
         </Button>
-        <Button variant="outline" size="icon" className="rounded-full">
-          <Globe className="h-4 w-4" />
-        </Button>
       </div>
 
       <div className="mb-8">
@@ -357,14 +354,14 @@ const ProfilePage = ({ userId }: ProfilePageProps = {}) => {
             </div>
           )}
         </CardContent>
-        <Button
-  variant="outline"
-  className="w-full text-destructive border-destructive"
-  onClick={handleSignOut}
->
-  <LogOut className="w-4 h-4 mr-2" />
-  Sign Out
-</Button>
+        {/*  <Button
+          variant="outline"
+          className="w-full text-destructive border-destructive"
+          onClick={handleSignOut}
+        >
+          <LogOut className="w-4 h-4 mr-2" />
+          Sign Out
+        </Button>*/}
       </Card>
     </div>
   );

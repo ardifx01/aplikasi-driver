@@ -630,9 +630,6 @@ const BookingHistory = ({ userId, driverSaldo }: BookingHistoryProps = {}) => {
               <ArrowLeft className="h-4 w-4" />
               <span>Kembali</span>
             </Button>
-            <Button variant="outline" size="icon" className="rounded-full">
-              <Globe className="h-4 w-4" />
-            </Button>
           </div>
           <Card className="w-full">
             <CardHeader>
