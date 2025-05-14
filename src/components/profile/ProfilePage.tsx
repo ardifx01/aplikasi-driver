@@ -162,8 +162,12 @@ const ProfilePage = ({ userId }: ProfilePageProps = {}) => {
             <div className="flex justify-center mb-4">
               <Avatar className="h-24 w-24">
                 <AvatarImage
-                  src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${user?.name || "default"}`}
-                  alt={user?.name}
+                  src={
+                    user?.selfie_url
+                      ? user.selfie_url
+                      : `https://api.dicebear.com/7.x/avataaars/svg?seed=${user?.name || "default"}`
+                  }
+                  alt={user?.name || "User Avatar"}
                 />
                 <AvatarFallback>
                   <User className="h-12 w-12" />
