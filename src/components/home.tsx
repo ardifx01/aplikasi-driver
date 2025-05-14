@@ -348,7 +348,10 @@ const Home = () => {
             <div className="flex items-center space-x-3 rounded-lg bg-muted p-3">
               <Avatar>
                 <AvatarImage
-                  src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${user.name}`}
+                  src={
+                    user?.selfie_url ||
+                    `https://api.dicebear.com/7.x/avataaars/svg?seed=${user?.name}`
+                  }
                 />
                 <AvatarFallback>{user.name?.charAt(0)}</AvatarFallback>
               </Avatar>
@@ -678,7 +681,10 @@ const Home = () => {
                   <div className="flex items-center space-x-3">
                     <Avatar>
                       <AvatarImage
-                        src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${user?.name}`}
+                        src={
+                          user?.selfie_url ||
+                          `https://api.dicebear.com/7.x/avataaars/svg?seed=${user?.name}`
+                        }
                       />
                       <AvatarFallback>{user?.name?.charAt(0)}</AvatarFallback>
                     </Avatar>
