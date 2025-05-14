@@ -106,9 +106,3 @@
     padding-top: 4rem;
   }
 }
-
-@media (max-width: 768px) {
-  .leading-none {
-    line-height: 0;
-  }
-}
