@@ -66,8 +66,8 @@ const DriverNotifications = () => {
 
   return (
     <Card className="w-full">
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
+      <CardHeader className="mt-4 sm:mt-0">
+        <CardTitle className="flex items-center gap-2 mt-2">
           <Bell className="h-5 w-5 text-primary" />
           Driver Notifications for Airport Transfers
         </CardTitle>
