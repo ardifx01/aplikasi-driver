@@ -671,10 +671,10 @@ const Home = () => {
               onClick={() => setShowNotifications(false)}
             >
               <div
-                className="fixed top-0 left-0 bottom-0 z-50 w-4/5 max-w-xs bg-background p-4 shadow-lg overflow-auto"
+                className="fixed top-12 left-0 bottom-0 z-50 w-5/5 max-w-xs bg-background p-4 shadow-lg overflow-y-auto max-h-[55vh] rounded-r-xl"
                 onClick={(e) => e.stopPropagation()}
               >
-                <div className="flex items-center justify-between mb-6">
+                <div className="flex items-center justify-between mb-6 mt-6">
                   <div className="flex items-center space-x-3">
                     <Avatar>
                       <AvatarImage
