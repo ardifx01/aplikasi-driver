@@ -54,7 +54,7 @@ const ProfilePage = ({ userId }: ProfilePageProps = {}) => {
         // Fetch user data from drivers table
         const { data: driverData, error: driverError } = await supabase
           .from("drivers")
-          .select("*")
+          .select("*, phone_number")
           .eq("id", userId)
           .single();
 
@@ -62,7 +62,7 @@ const ProfilePage = ({ userId }: ProfilePageProps = {}) => {
           // If not found in drivers, try users table
           const { data: userData, error: userError } = await supabase
             .from("users")
-            .select("*")
+            .select("*,phone")
             .eq("id", userId)
             .single();
 
@@ -72,6 +72,7 @@ const ProfilePage = ({ userId }: ProfilePageProps = {}) => {
           setUser(driverData);
         }
       } catch (error) {
+        console.log("Driver data:", driverData);
         console.error("Error fetching user profile:", error);
         setError("Failed to load user profile");
       } finally {
@@ -213,7 +214,9 @@ const ProfilePage = ({ userId }: ProfilePageProps = {}) => {
                   Nomor Telepon
                 </h3>
                 <p className="text-lg">
-                  {user?.phone_number || "Tidak tersedia"}
+                  {user?.phone_number?.trim() ||
+                    user?.phone ||
+                    "Tidak tersedia"}
                 </p>
               </div>
               <div>
@@ -230,6 +233,14 @@ const ProfilePage = ({ userId }: ProfilePageProps = {}) => {
                 </h3>
                 <p className="text-lg">
                   Rp {(user?.saldo || 0).toLocaleString()}
+                </p>
+              </div>
+              <div>
+                <h3 className="text-sm font-medium text-muted-foreground mb-1">
+                  Driver Role
+                </h3>
+                <p className="text-lg">
+                  {user?.description || "Driver Perusahaan"}
                 </p>
               </div>
               <div>
