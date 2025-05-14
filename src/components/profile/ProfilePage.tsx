@@ -31,6 +31,7 @@ const ProfilePage = ({ userId }: ProfilePageProps = {}) => {
   const [error, setError] = useState<string | null>(null);
   const [loadingSaldoHistory, setLoadingSaldoHistory] = useState(true);
   const [saldoHistory, setSaldoHistory] = useState<any[]>([]);
+  const [driver, setDriver] = useState<any>(null);
 
   useEffect(() => {
     const fetchUserProfile = async () => {
@@ -207,17 +208,15 @@ const ProfilePage = ({ userId }: ProfilePageProps = {}) => {
                 <h3 className="text-sm font-medium text-muted-foreground mb-1">
                   Email
                 </h3>
-                <p className="text-lg">{user?.email || "Tidak tersedia"}</p>
+                <p className="text-lg">
+                  {driver?.email || user?.email || "Tidak tersedia"}
+                </p>
               </div>
               <div>
                 <h3 className="text-sm font-medium text-muted-foreground mb-1">
                   Nomor Telepon
                 </h3>
-                <p className="text-lg">
-                  {user?.phone_number?.trim() ||
-                    user?.phone ||
-                    "Tidak tersedia"}
-                </p>
+                <p>{driver?.phone_number || user?.phone || "Tidak tersedia"}</p>
               </div>
               <div>
                 <h3 className="text-sm font-medium text-muted-foreground mb-1">
