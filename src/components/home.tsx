@@ -421,7 +421,7 @@ const Home = () => {
             </Button>
           </nav>
 
-          <div className="absolute bottom-4 w-56">
+          <div className="pt-4 border-t">
             <Button
               variant="outline"
               className="w-full justify-start text-destructive"
@@ -778,7 +778,7 @@ const Home = () => {
                     Detail Jatuh Tempo
                   </Button>
 
-                  <div className="pt-4 mt-4 border-t">
+                  <div className="pt-4 border-t">
                     <Button
                       variant="outline"
                       className="w-full justify-start text-destructive"
