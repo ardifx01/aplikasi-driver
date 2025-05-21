@@ -27,6 +27,8 @@ import {
   Bell,
   DollarSign,
   CalendarIcon,
+  Plane,
+  RefreshCw,
 } from "lucide-react";
 import AuthForms from "./auth/AuthForms";
 import VehicleBooking from "./booking/VehicleBooking";
@@ -291,8 +293,7 @@ const Home = () => {
       const { error } = await supabase.auth.signOut();
       if (error) throw error;
       setUser(null);
-      window.location.href =
-        "https://recursing-shannon1-afnjp.view-3.tempo-dev.app/";
+      navigate("/");
     } catch (error) {
       console.error("Error signing out:", error);
     }
@@ -418,6 +419,14 @@ const Home = () => {
             >
               <CalendarIcon className="mr-2 h-4 w-4" />
               Detail Jatuh Tempo
+            </Button>
+            <Button
+              variant={activeTab === "airport" ? "default" : "ghost"}
+              className="w-full justify-start"
+              onClick={() => setActiveTab("airport")}
+            >
+              <Plane className="mr-2 h-4 w-4" />
+              Airport Transfer
             </Button>
           </nav>
 
@@ -615,7 +624,35 @@ const Home = () => {
                   value="notifications"
                   className="relative z-0 bg-white min-h-[240px]"
                 >
-                  <DriverNotifications />
+                  <DriverNotifications historyMode={false} />
+                </TabsContent>
+
+                <TabsContent
+                  value="airport"
+                  className="relative z-0 bg-white min-h-[240px]"
+                >
+                  <div className="w-full bg-white border rounded-md shadow-sm">
+                    <div className="flex items-center justify-between px-4 py-3 border-b">
+                      <div className="flex items-center gap-2">
+                        <Plane className="h-5 w-5 text-primary" />
+                        <h2 className="text-lg font-semibold">
+                          Airport Transfer History
+                        </h2>
+                      </div>
+                      <Button
+                        onClick={() => window.location.reload()} // atau panggil refetch function
+                        size="sm"
+                        variant="outline"
+                        className="flex items-center gap-1"
+                      >
+                        <RefreshCw className="h-4 w-4" />
+                        Refresh
+                      </Button>
+                    </div>
+                    <div className="p-4">
+                      <DriverNotifications historyMode={true} />
+                    </div>
+                  </div>
                 </TabsContent>
 
                 <TabsContent
@@ -846,6 +883,18 @@ const Home = () => {
               >
                 <Bell className="h-5 w-5" />
                 <span className="mt-1 text-xs">Notif</span>
+              </Button>
+              <Button
+                variant="ghost"
+                className={`flex flex-col items-center justify-center rounded-md p-2 ${
+                  activeTab === "airport" ? "bg-muted" : ""
+                }`}
+                onClick={() => {
+                  setActiveTab("airport");
+                }}
+              >
+                <Plane className="h-5 w-5" />
+                <span className="mt-1 text-xs">Airport</span>
               </Button>
             </div>
           </div>

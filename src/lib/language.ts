@@ -2,7 +2,7 @@ import { Language } from "@/components/common/LanguageSelector";
 
 export type TranslationKey =
   | "dashboard"
-  | "bookVehicle" 
+  | "bookVehicle"
   | "bookingHistory"
   | "payments"
   | "profile"
@@ -25,7 +25,7 @@ export type TranslationKey =
 export const translations: Record<Language, Record<TranslationKey, string>> = {
   en: {
     dashboard: "Driver Portal",
-    bookVehicle: "Book Vehicle", 
+    bookVehicle: "Book Vehicle",
     bookingHistory: "Booking History",
     payments: "Payments",
     profile: "Profile",
@@ -44,6 +44,7 @@ export const translations: Record<Language, Record<TranslationKey, string>> = {
     payNow: "Pay Now",
     viewVehicles: "View Vehicles",
     vehicleModels: "Vehicle Models",
+    airportTransfer: "Airport Transfer",
   },
   id: {
     dashboard: "Portal Pengemudi",
@@ -66,6 +67,7 @@ export const translations: Record<Language, Record<TranslationKey, string>> = {
     payNow: "Bayar Sekarang",
     viewVehicles: "Lihat Kendaraan",
     vehicleModels: "Model Kendaraan",
+    airportTransfer: "Airport Transfer",
   },
 };
 

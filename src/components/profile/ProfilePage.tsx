@@ -35,6 +35,7 @@ const ProfilePage = ({ userId }: ProfilePageProps = {}) => {
 
   useEffect(() => {
     const fetchUserProfile = async () => {
+      let driverData = null;
       try {
         setLoading(true);
         setError(null);
@@ -53,11 +54,13 @@ const ProfilePage = ({ userId }: ProfilePageProps = {}) => {
         }
 
         // Fetch user data from drivers table
-        const { data: driverData, error: driverError } = await supabase
+        const { data, error: driverError } = await supabase
           .from("drivers")
           .select("*, phone_number")
           .eq("id", userId)
           .single();
+
+        driverData = data;
 
         if (driverError) {
           // If not found in drivers, try users table
@@ -241,6 +244,12 @@ const ProfilePage = ({ userId }: ProfilePageProps = {}) => {
                 <p className="text-lg">
                   {user?.description || "Driver Perusahaan"}
                 </p>
+              </div>
+              <div>
+                <h3 className="text-sm font-medium text-muted-foreground mb-1">
+                  Driver ID
+                </h3>
+                <p className="text-lg">{user?.id_driver ?? "Belum tersedia"}</p>
               </div>
               <div>
                 <h3 className="text-sm font-medium text-muted-foreground mb-1">
