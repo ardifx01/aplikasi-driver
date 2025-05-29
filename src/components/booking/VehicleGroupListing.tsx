@@ -17,6 +17,7 @@ interface VehicleGroup {
   image: string;
   plateNumbers?: string[];
   licenseNumbers?: string[];
+  type: string;
 }
 
 const VehicleGroupListing = () => {
@@ -32,12 +33,13 @@ const VehicleGroupListing = () => {
         // Get vehicles grouped by model including plate numbers
         const { data, error } = await supabase
           .from("vehicles")
-          .select("make, model, image, plate_number")
+          .select("make, model, image, plate_number, type")
           .eq("status", "available");
 
         if (error) throw error;
 
         if (data) {
+          console.log("All available vehicles from Supabase:", data);
           // Group vehicles by model and count them
           const groupsByModel: Record<string, VehicleGroup> = {};
 
@@ -51,6 +53,7 @@ const VehicleGroupListing = () => {
                 count: 0,
                 image: vehicle.image || "", // Use the first image for this model
                 plateNumbers: [],
+                type: vehicle.type || "",
               };
             }
 
@@ -82,7 +85,7 @@ const VehicleGroupListing = () => {
   // Handle group selection
   const handleGroupSelect = (vehicleModel: string, make: string) => {
     navigate(
-      `/booking?model=${encodeURIComponent(vehicleModel)}&make=${encodeURIComponent(make)}`,
+      `/booking?model=${encodeURIComponent(vehicleModel)}&make=${encodeURIComponent(make)}&type=${encodeURIComponent(type)}`,
     );
   };
 

@@ -737,7 +737,7 @@ const BookingHistory = ({ userId, driverSaldo }: BookingHistoryProps = {}) => {
                               <TableHead>Tanggal Pemesanan</TableHead>
                               <TableHead>Waktu Mulai</TableHead>
                               <TableHead>Durasi</TableHead>
-                              <TableHead>Status</TableHead>
+                              <TableHead>Booking Status</TableHead>
                               <TableHead>Pembayaran</TableHead>
                               <TableHead>Aksi</TableHead>
                             </TableRow>
@@ -1213,7 +1213,10 @@ const BookingHistory = ({ userId, driverSaldo }: BookingHistoryProps = {}) => {
                               <div className="flex items-center">
                                 <DollarSign className="mr-2 h-4 w-4 text-primary" />
                                 <span className="text-2xl font-bold">
-                                  Rp {userSaldo.toLocaleString()}
+                                  Rp{" "}
+                                  {userSaldo != null
+                                    ? userSaldo.toLocaleString("id-ID")
+                                    : "0"}
                                 </span>
                               </div>
                             </CardContent>

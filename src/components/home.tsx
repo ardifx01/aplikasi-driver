@@ -540,7 +540,10 @@ const Home = () => {
                         <div className="flex items-center">
                           <DollarSign className="mr-2 h-4 w-4 text-green-500" />
                           <span className="text-2xl font-bold text-red-500">
-                            Rp {driverSaldo.toLocaleString()}
+                            Rp{" "}
+                            {typeof driverSaldo === "number"
+                              ? driverSaldo.toLocaleString()
+                              : "0"}
                           </span>
                         </div>
                       </CardContent>

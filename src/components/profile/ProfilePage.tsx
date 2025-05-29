@@ -32,15 +32,16 @@ const ProfilePage = ({ userId }: ProfilePageProps = {}) => {
   const [loadingSaldoHistory, setLoadingSaldoHistory] = useState(true);
   const [saldoHistory, setSaldoHistory] = useState<any[]>([]);
   const [driver, setDriver] = useState<any>(null);
+  const [driverStatus, setDriverStatus] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchUserProfile = async () => {
-      let driverData = null;
+      let driver = null;
+
       try {
         setLoading(true);
         setError(null);
 
-        // If no userId is provided, try to get the current user
         if (!userId) {
           const { data: sessionData, error: sessionError } =
             await supabase.auth.getSession();
@@ -53,31 +54,59 @@ const ProfilePage = ({ userId }: ProfilePageProps = {}) => {
           userId = sessionData.session.user.id;
         }
 
-        // Fetch user data from drivers table
-        const { data, error: driverError } = await supabase
+        // ✅ Ambil data dari tabel drivers
+        const { data: driverData, error: driverError } = await supabase
           .from("drivers")
-          .select("*, phone_number")
+          .select("*")
+          .eq("id", userId) // NOTE: ubah ke "user_id" jika sudah ada kolomnya
+          .maybeSingle();
+
+        console.log("🔍 driverData:", driverData);
+        console.log("❗ driverError:", driverError);
+
+        driver = driverData;
+
+        // ✅ Ambil data dari tabel users
+        const { data: userRecord, error: userError } = await supabase
+          .from("users")
+          .select("full_name, phone_number, email")
           .eq("id", userId)
           .single();
 
-        driverData = data;
+        console.log("🔍 userRecord:", userRecord);
+        console.log("❗ userError:", userError);
 
-        if (driverError) {
-          // If not found in drivers, try users table
-          const { data: userData, error: userError } = await supabase
-            .from("users")
-            .select("*,phone")
-            .eq("id", userId)
-            .single();
+        if (driverError && userError) {
+          throw new Error("User not found in both tables");
+        }
 
-          if (userError) throw userError;
-          setUser(userData);
-        } else {
-          setUser(driverData);
+        const mergedData = {
+          ...userRecord,
+          ...driver,
+        };
+
+        console.log("🧩 merged user + driver:", mergedData);
+
+        setUser(mergedData);
+        setDriver(driver);
+
+        // ✅ Ambil status driver dari bookings
+        const { data: bookingsData, error: bookingsError } = await supabase
+          .from("bookings")
+          .select("status")
+          .eq("user_id", userId)
+          .order("created_at", { ascending: false })
+          .limit(1);
+
+        console.log("🧾 latest booking data:", bookingsData);
+        console.log("❗ bookingsError:", bookingsError);
+
+        if (!bookingsError && bookingsData && bookingsData.length > 0) {
+          setDriverStatus(bookingsData[0].driver_status);
         }
       } catch (error) {
-        console.log("Driver data:", driverData);
-        console.error("Error fetching user profile:", error);
+        console.log("Driver data before error:", driver);
+        console.error("❌ Error fetching user profile:", error);
         setError("Failed to load user profile");
       } finally {
         setLoading(false);
@@ -88,17 +117,19 @@ const ProfilePage = ({ userId }: ProfilePageProps = {}) => {
       try {
         setLoadingSaldoHistory(true);
 
-        // Fetch saldo history from payments table
         const { data, error } = await supabase
           .from("payments")
           .select("*")
           .eq("driver_id", userId)
           .order("created_at", { ascending: false });
 
+        console.log("💰 Saldo history data:", data);
+        console.log("❗ Saldo history error:", error);
+
         if (error) throw error;
         setSaldoHistory(data || []);
       } catch (error) {
-        console.error("Error fetching saldo history:", error);
+        console.error("❌ Error fetching saldo history:", error);
       } finally {
         setLoadingSaldoHistory(false);
       }
@@ -205,7 +236,9 @@ const ProfilePage = ({ userId }: ProfilePageProps = {}) => {
                 <h3 className="text-sm font-medium text-muted-foreground mb-1">
                   Nama Lengkap
                 </h3>
-                <p className="text-lg">{user?.name || "Tidak tersedia"}</p>
+                <p className="text-lg">
+                  {driver?.name || user?.full_name || "Tidak tersedia"}
+                </p>
               </div>
               <div>
                 <h3 className="text-sm font-medium text-muted-foreground mb-1">
@@ -219,14 +252,16 @@ const ProfilePage = ({ userId }: ProfilePageProps = {}) => {
                 <h3 className="text-sm font-medium text-muted-foreground mb-1">
                   Nomor Telepon
                 </h3>
-                <p>{driver?.phone_number || user?.phone || "Tidak tersedia"}</p>
+                <p>{driver?.phone || user?.phone_number || "Tidak tersedia"}</p>
               </div>
               <div>
                 <h3 className="text-sm font-medium text-muted-foreground mb-1">
                   Nomor SIM
                 </h3>
                 <p className="text-lg">
-                  {user?.license_number || "Tidak tersedia"}
+                  {driver?.license_number ||
+                    user?.license_number ||
+                    "Tidak tersedia"}
                 </p>
               </div>
               <div>
@@ -234,7 +269,7 @@ const ProfilePage = ({ userId }: ProfilePageProps = {}) => {
                   Saldo Driver
                 </h3>
                 <p className="text-lg">
-                  Rp {(user?.saldo || 0).toLocaleString()}
+                  Rp {(driver?.saldo ?? 0).toLocaleString("id-ID")}
                 </p>
               </div>
               <div>
@@ -249,11 +284,13 @@ const ProfilePage = ({ userId }: ProfilePageProps = {}) => {
                 <h3 className="text-sm font-medium text-muted-foreground mb-1">
                   Driver ID
                 </h3>
-                <p className="text-lg">{user?.id_driver ?? "Belum tersedia"}</p>
+                <p>
+                  {driver?.id_driver ?? user?.id_driver ?? "Belum tersedia"}
+                </p>
               </div>
               <div>
                 <h3 className="text-sm font-medium text-muted-foreground mb-1">
-                  Status
+                  Account Status
                 </h3>
                 <p className="text-lg">{user?.status || "Aktif"}</p>
               </div>

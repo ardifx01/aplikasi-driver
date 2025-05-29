@@ -508,7 +508,10 @@ const PaymentTracking = ({
                 <div className="flex items-center">
                   <DollarSign className="mr-2 h-4 w-4 text-primary" />
                   <span className="text-2xl font-bold">
-                    Rp {userSaldo.toLocaleString()}
+                    Rp{" "}
+                    {typeof userSaldo === "number"
+                      ? userSaldo.toLocaleString()
+                      : "0"}
                   </span>
                 </div>
               </CardContent>
