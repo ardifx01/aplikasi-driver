@@ -66,29 +66,103 @@ const Home = () => {
         if (error) throw error;
 
         if (data?.session?.user) {
-          const { data: driverData, error: driverError } = await supabase
+          const sessionUserId = data.session.user.id;
+          const sessionUserEmail = data.session.user.email;
+
+          console.log("🔍 Home - Session user ID:", sessionUserId);
+          console.log("🔍 Home - Session user email:", sessionUserEmail);
+
+          // Try to get driver data first by ID
+          let { data: driverData, error: driverError } = await supabase
             .from("drivers")
             .select("*")
-            .eq("id", data.session.user.id)
-            .single();
+            .eq("id", sessionUserId)
+            .maybeSingle();
 
-          if (driverError) {
-            console.error("Error fetching driver data:", driverError);
-            setLoading(false);
-            return;
+          console.log("🔍 Home - Initial driver data fetch by ID:", driverData);
+          console.log("❗ Home - Initial driver error:", driverError);
+
+          // If no driver found by ID, try by email
+          if (!driverData && sessionUserEmail) {
+            const { data: driverByEmail, error: driverByEmailError } =
+              await supabase
+                .from("drivers")
+                .select("*")
+                .eq("email", sessionUserEmail)
+                .maybeSingle();
+
+            console.log("🔍 Home - Driver data fetch by email:", driverByEmail);
+            console.log("❗ Home - Driver by email error:", driverByEmailError);
+
+            if (driverByEmail) {
+              driverData = driverByEmail;
+            }
           }
 
-          setUser(driverData);
-
-          // Fetch driver saldo if available
           if (driverData) {
-            console.log("Driver data:", driverData);
-            setDriverSaldo(driverData.saldo || 0);
-          }
+            const saldoValue = Number(driverData.saldo) || 0;
+            setUser(driverData);
+            setDriverSaldo(saldoValue);
+            console.log(
+              "✅ Home - Using driver data, saldo:",
+              saldoValue,
+              "(raw:",
+              driverData.saldo,
+              ")",
+            );
 
-          // Pass user ID to ensure data is filtered for the logged-in user
-          fetchPaymentStats(data.session.user.id);
-          fetchCurrentVehicle(data.session.user.id);
+            // Use the driver's actual ID for fetching stats
+            fetchPaymentStats(driverData.id);
+            fetchCurrentVehicle(driverData.id);
+          } else {
+            // Fallback to users table by ID
+            let { data: userData, error: userError } = await supabase
+              .from("users")
+              .select("*")
+              .eq("id", sessionUserId)
+              .maybeSingle();
+
+            console.log("🔍 Home - Fallback user data by ID:", userData);
+            console.log("❗ Home - User error:", userError);
+
+            // If no user found by ID, try by email
+            if (!userData && sessionUserEmail) {
+              const { data: userByEmail, error: userByEmailError } =
+                await supabase
+                  .from("users")
+                  .select("*")
+                  .eq("email", sessionUserEmail)
+                  .maybeSingle();
+
+              console.log("🔍 Home - User data fetch by email:", userByEmail);
+              console.log("❗ Home - User by email error:", userByEmailError);
+
+              if (userByEmail) {
+                userData = userByEmail;
+              }
+            }
+
+            if (userData) {
+              const saldoValue = Number(userData.saldo) || 0;
+              setUser(userData);
+              setDriverSaldo(saldoValue);
+              console.log(
+                "✅ Home - Using user data, saldo:",
+                saldoValue,
+                "(raw:",
+                userData.saldo,
+                ")",
+              );
+
+              // Use the user's actual ID for fetching stats
+              fetchPaymentStats(userData.id);
+              fetchCurrentVehicle(userData.id);
+            } else {
+              console.error("No user found in either drivers or users table");
+              setLoading(false);
+              return;
+            }
+          }
         }
       } catch (error) {
         console.error("Error checking authentication:", error);
@@ -153,27 +227,125 @@ const Home = () => {
   };
 
   const fetchPaymentStats = async (userId) => {
-    console.log("Fetching payment stats for user:", userId);
+    console.log("🚀 fetchPaymentStats - Starting for user:", userId);
     try {
       // Get the latest booking data with remaining_payments field
       const { data: bookingsData, error: bookingsError } = await supabase
         .from("bookings")
         .select(
-          "*, remaining_payments, booking_date, end_date, start_date, status, total_amount, paid_amount",
+          "*, remaining_payments, booking_date, end_date, start_date, bookings_status, total_amount, paid_amount",
         )
         .eq("user_id", userId);
 
-      if (bookingsError) throw bookingsError;
+      if (bookingsError) {
+        console.error("❌ fetchPaymentStats - Bookings error:", bookingsError);
+        throw bookingsError;
+      }
 
-      // Get driver saldo directly from drivers table
-      const { data: driverData, error: driverError } = await supabase
+      // Get current session to verify user ID
+      const { data: sessionData } = await supabase.auth.getSession();
+      const currentUserId = sessionData?.session?.user?.id;
+      const sessionUserEmail = sessionData?.session?.user?.email;
+      console.log(
+        "🔍 fetchPaymentStats - Current session user ID:",
+        currentUserId,
+      );
+      console.log("🔍 fetchPaymentStats - Requested user ID:", userId);
+      console.log("🔍 fetchPaymentStats - Session email:", sessionUserEmail);
+
+      // Get driver saldo directly from drivers table with fresh data
+      console.log(
+        "🔍 fetchPaymentStats - Fetching from drivers table by ID:",
+        userId,
+      );
+      let { data: driverData, error: driverError } = await supabase
         .from("drivers")
-        .select("saldo, overdue_days, total_overdue")
+        .select("saldo, overdue_days, total_overdue, name, email, id")
         .eq("id", userId)
-        .single();
+        .maybeSingle();
 
-      if (driverError && driverError.code !== "PGRST116") {
-        console.error("Error fetching driver saldo:", driverError);
+      console.log(
+        "🔍 fetchPaymentStats - Driver data from drivers table by ID:",
+        driverData,
+      );
+      console.log("❗ fetchPaymentStats - Driver error:", driverError);
+
+      // If no driver found by ID, try by email
+      if (!driverData && sessionUserEmail) {
+        console.log(
+          "🔍 fetchPaymentStats - Trying drivers table by email:",
+          sessionUserEmail,
+        );
+        const { data: driverByEmail, error: driverByEmailError } =
+          await supabase
+            .from("drivers")
+            .select("saldo, overdue_days, total_overdue, name, email, id")
+            .eq("email", sessionUserEmail)
+            .maybeSingle();
+
+        console.log("🔍 fetchPaymentStats - Driver by email:", driverByEmail);
+        console.log(
+          "❗ fetchPaymentStats - Driver by email error:",
+          driverByEmailError,
+        );
+
+        if (driverByEmail) {
+          driverData = driverByEmail;
+          // Update the user state with the correct driver data
+          setUser(driverByEmail);
+          console.log(
+            "✅ fetchPaymentStats - Updated user state with driver data from email lookup",
+          );
+        }
+      }
+
+      // If no driver data, try users table by ID
+      let fallbackUserData = null;
+      if (!driverData) {
+        console.log(
+          "🔍 fetchPaymentStats - No driver found, trying users table by ID:",
+          userId,
+        );
+        let { data: userData, error: userError } = await supabase
+          .from("users")
+          .select("saldo, full_name, email, id")
+          .eq("id", userId)
+          .maybeSingle();
+
+        console.log(
+          "🔍 fetchPaymentStats - Fallback user data from users table by ID:",
+          userData,
+        );
+        console.log("❗ fetchPaymentStats - User error:", userError);
+
+        // If no user found by ID, try by email
+        if (!userData && sessionUserEmail) {
+          console.log(
+            "🔍 fetchPaymentStats - Trying users table by email:",
+            sessionUserEmail,
+          );
+          const { data: userByEmail, error: userByEmailError } = await supabase
+            .from("users")
+            .select("saldo, full_name, email, id")
+            .eq("email", sessionUserEmail)
+            .maybeSingle();
+
+          console.log("🔍 fetchPaymentStats - User by email:", userByEmail);
+          console.log(
+            "❗ fetchPaymentStats - User by email error:",
+            userByEmailError,
+          );
+
+          if (userByEmail) {
+            userData = userByEmail;
+            setUser(userByEmail);
+            console.log(
+              "✅ fetchPaymentStats - Updated user state with user data from email lookup",
+            );
+          }
+        }
+
+        fallbackUserData = userData;
       }
 
       // Calculate total pending from remaining_payments in bookings
@@ -191,7 +363,7 @@ const Home = () => {
           }
 
           // Calculate overdue information
-          if (booking.status === "completed" && booking.end_date) {
+          if (booking.bookings_status === "completed" && booking.end_date) {
             const endDate = new Date(booking.end_date);
             if (endDate < today) {
               // Calculate days difference
@@ -206,7 +378,10 @@ const Home = () => {
                 maxOverdueDays = Math.max(maxOverdueDays, diffDays);
               }
             }
-          } else if (booking.status !== "completed" && booking.start_date) {
+          } else if (
+            booking.bookings_status !== "completed" &&
+            booking.start_date
+          ) {
             // For non-completed bookings, calculate days from start_date
             const startDate = new Date(booking.start_date);
             if (startDate <= today) {
@@ -226,12 +401,43 @@ const Home = () => {
         });
       }
 
-      // Get the driver saldo from the database
+      // Get the driver saldo from the database - ensure fresh data
       let driverSaldoValue = 0;
-      if (driverData && driverData.saldo !== undefined) {
-        console.log("Driver saldo from database:", driverData.saldo);
-        driverSaldoValue = driverData.saldo;
+      if (driverData) {
+        const rawSaldo = driverData.saldo;
+        driverSaldoValue = Number(rawSaldo) || 0;
+        console.log(
+          "✅ fetchPaymentStats - Driver saldo from drivers table (fresh):",
+          driverSaldoValue,
+          "(raw value:",
+          rawSaldo,
+          ", type:",
+          typeof rawSaldo,
+          ")",
+        );
+      } else if (fallbackUserData) {
+        const rawSaldo = fallbackUserData.saldo;
+        driverSaldoValue = Number(rawSaldo) || 0;
+        console.log(
+          "✅ fetchPaymentStats - Driver saldo from users table (fallback):",
+          driverSaldoValue,
+          "(raw value:",
+          rawSaldo,
+          ", type:",
+          typeof rawSaldo,
+          ")",
+        );
+      } else {
+        console.log(
+          "❌ fetchPaymentStats - No user found in either table, defaulting saldo to 0",
+        );
+        driverSaldoValue = 0;
       }
+
+      console.log(
+        "🎯 fetchPaymentStats - Final driverSaldoValue before setState:",
+        driverSaldoValue,
+      );
 
       // Set the values from the database
       // Check if there are any bookings, if not set all values to 0
@@ -255,7 +461,12 @@ const Home = () => {
         setOverdueDays(maxOverdueDays);
         setHasUnpaidBookings(pending > 0);
       }
+      // Set the driver saldo state
       setDriverSaldo(driverSaldoValue);
+      console.log(
+        "🎯 fetchPaymentStats - setDriverSaldo called with:",
+        driverSaldoValue,
+      );
 
       // Calculate total paid amount from bookings data
       const totalPaidAmount =
@@ -266,7 +477,7 @@ const Home = () => {
             )
           : 0;
 
-      console.log("Payment stats from database:", {
+      console.log("📊 fetchPaymentStats - Payment stats summary:", {
         paid: totalPaidAmount,
         pending: pending,
         driverSaldo: driverSaldoValue,
@@ -274,7 +485,21 @@ const Home = () => {
         overdueTotal: totalOverdueAmount,
         maxOverdueDays: maxOverdueDays,
         unpaidBookings: pending > 0,
+        timestamp: new Date().toISOString(),
       });
+
+      // Force a re-render by updating the user state if we have driver data
+      if (driverData && driverData.saldo !== undefined) {
+        setUser((prevUser) => ({
+          ...prevUser,
+          ...driverData,
+          saldo: driverSaldoValue,
+        }));
+        console.log(
+          "🔄 fetchPaymentStats - Updated user state with fresh saldo:",
+          driverSaldoValue,
+        );
+      }
     } catch (error) {
       console.error("Error fetching payment stats:", error);
       // Set all values to 0 in case of error
@@ -541,9 +766,20 @@ const Home = () => {
                           <DollarSign className="mr-2 h-4 w-4 text-green-500" />
                           <span className="text-2xl font-bold text-red-500">
                             Rp{" "}
-                            {typeof driverSaldo === "number"
-                              ? driverSaldo.toLocaleString()
-                              : "0"}
+                            {(() => {
+                              const saldoValue =
+                                typeof driverSaldo === "number"
+                                  ? driverSaldo
+                                  : 0;
+                              console.log(
+                                "🎯 Dashboard - Rendering saldo:",
+                                saldoValue,
+                                "(type:",
+                                typeof driverSaldo,
+                                ")",
+                              );
+                              return saldoValue.toLocaleString();
+                            })()}
                           </span>
                         </div>
                       </CardContent>
@@ -603,7 +839,12 @@ const Home = () => {
                   value="booking"
                   className="relative z-1 bg-white min-h-[240px]"
                 >
-                  {user?.id && <VehicleBooking userId={user.id} />}
+                  {user?.id && (
+                    <VehicleBooking
+                      userId={user.id}
+                      driverSaldo={driverSaldo}
+                    />
+                  )}
                 </TabsContent>
 
                 <TabsContent

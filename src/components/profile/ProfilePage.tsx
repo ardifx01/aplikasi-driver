@@ -37,64 +37,142 @@ const ProfilePage = ({ userId }: ProfilePageProps = {}) => {
   useEffect(() => {
     const fetchUserProfile = async () => {
       let driver = null;
+      let currentUserId = userId;
+      let sessionData = null;
 
       try {
         setLoading(true);
         setError(null);
 
-        if (!userId) {
-          const { data: sessionData, error: sessionError } =
-            await supabase.auth.getSession();
-          if (sessionError) throw sessionError;
+        // Always get session data to have access to user email
+        const { data: sessionDataResponse, error: sessionError } =
+          await supabase.auth.getSession();
+        if (sessionError) throw sessionError;
 
+        sessionData = sessionDataResponse;
+
+        if (!currentUserId) {
           if (!sessionData?.session?.user?.id) {
             throw new Error("No authenticated user found");
           }
-
-          userId = sessionData.session.user.id;
+          currentUserId = sessionData.session.user.id;
         }
 
-        // ✅ Ambil data dari tabel drivers
-        const { data: driverData, error: driverError } = await supabase
+        const sessionUserEmail = sessionData?.session?.user?.email;
+        console.log("🔍 ProfilePage - Session user ID:", currentUserId);
+        console.log("🔍 ProfilePage - Session user email:", sessionUserEmail);
+
+        // ✅ Ambil data dari tabel drivers dengan saldo terbaru by ID
+        let { data: driverData, error: driverError } = await supabase
           .from("drivers")
           .select("*")
-          .eq("id", userId) // NOTE: ubah ke "user_id" jika sudah ada kolomnya
+          .eq("id", currentUserId)
           .maybeSingle();
 
-        console.log("🔍 driverData:", driverData);
-        console.log("❗ driverError:", driverError);
+        console.log("🔍 ProfilePage - driverData by ID:", driverData);
+        console.log("❗ ProfilePage - driverError:", driverError);
 
-        driver = driverData;
+        // If no driver found by ID, try by email
+        if (!driverData && sessionUserEmail) {
+          const { data: driverByEmail, error: driverByEmailError } =
+            await supabase
+              .from("drivers")
+              .select("*")
+              .eq("email", sessionUserEmail)
+              .maybeSingle();
 
-        // ✅ Ambil data dari tabel users
-        const { data: userRecord, error: userError } = await supabase
+          console.log("🔍 ProfilePage - driverData by email:", driverByEmail);
+          console.log(
+            "❗ ProfilePage - driverByEmailError:",
+            driverByEmailError,
+          );
+
+          if (driverByEmail) {
+            driverData = driverByEmail;
+            // Update currentUserId to the actual driver ID
+            currentUserId = driverByEmail.id;
+          }
+        }
+
+        // ✅ Ambil data dari tabel users sebagai fallback by ID
+        let { data: userRecord, error: userError } = await supabase
           .from("users")
-          .select("full_name, phone_number, email")
-          .eq("id", userId)
-          .single();
+          .select("*")
+          .eq("id", currentUserId)
+          .maybeSingle();
 
-        console.log("🔍 userRecord:", userRecord);
-        console.log("❗ userError:", userError);
+        console.log("🔍 ProfilePage - userRecord by ID:", userRecord);
+        console.log("❗ ProfilePage - userError:", userError);
 
-        if (driverError && userError) {
+        // If no user found by ID, try by email
+        if (!userRecord && sessionUserEmail) {
+          const { data: userByEmail, error: userByEmailError } = await supabase
+            .from("users")
+            .select("*")
+            .eq("email", sessionUserEmail)
+            .maybeSingle();
+
+          console.log("🔍 ProfilePage - userRecord by email:", userByEmail);
+          console.log("❗ ProfilePage - userByEmailError:", userByEmailError);
+
+          if (userByEmail) {
+            userRecord = userByEmail;
+            // Update currentUserId to the actual user ID if we didn't find a driver
+            if (!driverData) {
+              currentUserId = userByEmail.id;
+            }
+          }
+        }
+
+        // Prioritize driver data, fallback to user data
+        if (driverData) {
+          driver = driverData;
+          const saldoValue = Number(driverData.saldo) || 0;
+          const mergedData = {
+            ...userRecord,
+            ...driverData,
+            saldo: saldoValue,
+          };
+          setUser(mergedData);
+          setDriver({
+            ...driverData,
+            saldo: saldoValue,
+          });
+          console.log(
+            "✅ ProfilePage - Using driver data with saldo:",
+            saldoValue,
+            "(raw:",
+            driverData.saldo,
+            ")",
+          );
+        } else if (userRecord) {
+          // If no driver data, use user data
+          const saldoValue = Number(userRecord.saldo) || 0;
+          const mergedData = {
+            ...userRecord,
+            saldo: saldoValue,
+          };
+          setUser(mergedData);
+          setDriver({ ...userRecord, saldo: saldoValue });
+          console.log(
+            "✅ ProfilePage - Using user data with saldo:",
+            saldoValue,
+            "(raw:",
+            userRecord.saldo,
+            ")",
+          );
+        } else {
           throw new Error("User not found in both tables");
         }
 
-        const mergedData = {
-          ...userRecord,
-          ...driver,
-        };
-
-        console.log("🧩 merged user + driver:", mergedData);
-
-        setUser(mergedData);
-        setDriver(driver);
+        console.log("🧩 Final user data:", user);
+        console.log("🧩 Final driver data:", driver);
 
         // ✅ Ambil status driver dari bookings
         const { data: bookingsData, error: bookingsError } = await supabase
           .from("bookings")
-          .select("status")
-          .eq("user_id", userId)
+          .select("bookings_status")
+          .eq("user_id", currentUserId)
           .order("created_at", { ascending: false })
           .limit(1);
 
@@ -102,7 +180,12 @@ const ProfilePage = ({ userId }: ProfilePageProps = {}) => {
         console.log("❗ bookingsError:", bookingsError);
 
         if (!bookingsError && bookingsData && bookingsData.length > 0) {
-          setDriverStatus(bookingsData[0].driver_status);
+          setDriverStatus(bookingsData[0].bookings_status);
+        }
+
+        // Fetch saldo history after getting user ID
+        if (currentUserId) {
+          await fetchSaldoHistory(currentUserId);
         }
       } catch (error) {
         console.log("Driver data before error:", driver);
@@ -269,7 +352,20 @@ const ProfilePage = ({ userId }: ProfilePageProps = {}) => {
                   Saldo Driver
                 </h3>
                 <p className="text-lg">
-                  Rp {(driver?.saldo ?? 0).toLocaleString("id-ID")}
+                  {(() => {
+                    const saldoValue = driver?.saldo ?? 0;
+                    const numericSaldo = Number(saldoValue) || 0;
+                    console.log(
+                      "🎯 ProfilePage - Rendering saldo:",
+                      numericSaldo,
+                      "(raw:",
+                      saldoValue,
+                      ", type:",
+                      typeof saldoValue,
+                      ")",
+                    );
+                    return `Rp ${numericSaldo.toLocaleString("id-ID")}`;
+                  })()}
                 </p>
               </div>
               <div>
@@ -292,7 +388,7 @@ const ProfilePage = ({ userId }: ProfilePageProps = {}) => {
                 <h3 className="text-sm font-medium text-muted-foreground mb-1">
                   Account Status
                 </h3>
-                <p className="text-lg">{user?.status || "Aktif"}</p>
+                <p className="text-lg">{driver?.account_status || "Aktif"}</p>
               </div>
             </div>
           </CardContent>

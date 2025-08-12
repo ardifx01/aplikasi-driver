@@ -47,7 +47,15 @@ import {
 } from "@/components/ui/popover";
 import { supabase } from "@/lib/supabase";
 
-const VehicleBooking = () => {
+interface VehicleBookingProps {
+  userId?: string;
+  driverSaldo?: number;
+}
+
+const VehicleBooking = ({
+  userId,
+  driverSaldo: propDriverSaldo,
+}: VehicleBookingProps) => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const typeFilter = searchParams.get("type");
@@ -81,7 +89,7 @@ const VehicleBooking = () => {
   const [pickupDateOpen, setPickupDateOpen] = useState(false);
   const [returnDateOpen, setReturnDateOpen] = useState(false);
   const [pickupTime, setPickupTime] = useState("08:00");
-  const [returnTime, setReturnTime] = useState("17:00");
+  const [returnTime, setReturnTime] = useState("08:00");
   const [driverOption, setDriverOption] = useState("self");
 
   const calculateRentalDuration = () => {
@@ -109,37 +117,77 @@ const VehicleBooking = () => {
     }
   }, [selectedVehicle, rentalDuration, driverOption, userSaldo, driverFee]);
 
-  // Fetch user saldo when component loads
+  // Fetch driver saldo from drivers table
   useEffect(() => {
-    const fetchUserSaldo = async () => {
+    const fetchDriverSaldo = async () => {
       try {
         const {
           data: { user },
         } = await supabase.auth.getUser();
 
         if (user) {
-          // Fetch user saldo from the database
-          const { data, error } = await supabase
-            .from("users")
-            .select("saldo")
-            .eq("id", user.id)
-            .single();
+          const sessionUserEmail = user.email;
+          console.log("🔍 VehicleBooking - Session user ID:", user.id);
+          console.log(
+            "🔍 VehicleBooking - Session user email:",
+            sessionUserEmail,
+          );
 
-          if (error) {
-            console.error("Error fetching user saldo:", error);
-            return;
+          // Fetch saldo directly from drivers table by ID first
+          let { data: driverData, error: driverError } = await supabase
+            .from("drivers")
+            .select("saldo, id, email")
+            .eq("id", user.id)
+            .maybeSingle();
+
+          console.log("🔍 VehicleBooking - Driver data by ID:", driverData);
+          console.log("❗ VehicleBooking - Driver error:", driverError);
+
+          // If no driver found by ID, try by email
+          if (!driverData && sessionUserEmail) {
+            const { data: driverByEmail, error: driverByEmailError } =
+              await supabase
+                .from("drivers")
+                .select("saldo, id, email")
+                .eq("email", sessionUserEmail)
+                .maybeSingle();
+
+            console.log(
+              "🔍 VehicleBooking - Driver data by email:",
+              driverByEmail,
+            );
+            console.log(
+              "❗ VehicleBooking - Driver by email error:",
+              driverByEmailError,
+            );
+
+            if (driverByEmail) {
+              driverData = driverByEmail;
+            }
           }
 
-          if (data) {
-            setUserSaldo(data.saldo || 0);
+          if (driverData) {
+            const saldoValue = Number(driverData.saldo) || 0;
+            setUserSaldo(saldoValue);
+            console.log(
+              "✅ VehicleBooking - Driver saldo from drivers table:",
+              saldoValue,
+              "(raw:",
+              driverData.saldo,
+              ")",
+            );
+          } else {
+            console.log("❌ VehicleBooking - No driver found in drivers table");
+            setUserSaldo(0);
           }
         }
       } catch (error) {
-        console.error("Error fetching user data:", error);
+        console.error("Error fetching driver saldo:", error);
+        setUserSaldo(0);
       }
     };
 
-    fetchUserSaldo();
+    fetchDriverSaldo();
   }, []);
 
   useEffect(() => {
@@ -218,11 +266,103 @@ const VehicleBooking = () => {
         return local.toISOString().split("T")[0];
       };
 
-      let bookingData = {
+      // Determine driver_id based on driver option
+      let driverId = null;
+
+      if (driverOption === "with-driver" && selectedDriver) {
+        // If with-driver option is selected and a driver is chosen
+        driverId = selectedDriver.id; // Use selected driver's ID from drivers table
+        console.log("Using selected driver ID:", driverId);
+      } else {
+        // For self-drive, ONLY use existing driver records from the drivers table
+        try {
+          const { data: driverData, error: driverError } = await supabase
+            .from("drivers")
+            .select("id, name")
+            .eq("email", user.email)
+            .maybeSingle();
+
+          console.log("Driver lookup result:", { driverData, driverError });
+
+          if (driverData && !driverError) {
+            driverId = driverData.id; // Use driver ID from drivers table
+            console.log("Found driver in drivers table:", driverId);
+          } else {
+            // If user is not found in drivers table, prevent booking creation
+            console.error("User not found in drivers table:", user.email);
+            alert(
+              language === "id"
+                ? "Akun Anda belum terdaftar sebagai driver. Silakan hubungi administrator untuk mendaftarkan akun Anda sebagai driver."
+                : "Your account is not registered as a driver. Please contact the administrator to register your account as a driver.",
+            );
+            return;
+          }
+        } catch (error) {
+          console.error("Error fetching driver data:", error);
+          alert(
+            language === "id"
+              ? "Terjadi kesalahan saat memverifikasi data driver. Silakan coba lagi."
+              : "An error occurred while verifying driver data. Please try again.",
+          );
+          return;
+        }
+      }
+
+      // Ensure driver_id is not null
+      if (!driverId) {
+        console.error("Driver ID is null, this will cause database error");
+        alert(
+          "Error: Unable to determine driver information. Please try again.",
+        );
+        return;
+      }
+
+      // Get driver name for the booking
+      let driverName = "Unknown";
+      try {
+        if (driverOption === "with-driver" && selectedDriver) {
+          // Use selected driver's name
+          driverName = selectedDriver.name || "Unknown Driver";
+        } else {
+          // For self-drive, get the current user's name from drivers table
+          // Since we already verified the driver exists above, we can safely fetch the name
+          const { data: currentDriverData, error: currentDriverError } =
+            await supabase
+              .from("drivers")
+              .select("name")
+              .eq("id", driverId)
+              .maybeSingle();
+
+          if (currentDriverData && !currentDriverError) {
+            driverName = currentDriverData.name || "Unknown Driver";
+          } else {
+            // This should not happen since we already verified the driver exists
+            console.error(
+              "Driver name not found for existing driver ID:",
+              driverId,
+            );
+            driverName = "Driver Name Not Found";
+          }
+        }
+      } catch (error) {
+        console.error("Error getting driver name:", error);
+        driverName = "Error Getting Driver Name";
+      }
+
+      // Create booking data with only valid bookings table columns
+      const bookingData = {
         vehicle_id: selectedVehicle.id,
         driver_option:
           driverOption === "with-driver" ? "Driver Service" : "Self Drive",
-        vehicle_type: selectedVehicle.type,
+        vehicle_type: selectedVehicle.type || null,
+        vehicle_name:
+          selectedVehicle.name ||
+          `${selectedVehicle.make} ${selectedVehicle.model}` ||
+          "Unknown Vehicle",
+        make: selectedVehicle.make || null,
+        model: selectedVehicle.model || null,
+        license_plate: selectedVehicle.license_plate || null,
+        plate_number: selectedVehicle.plate_number || null,
         booking_date: tomorrow.toISOString().split("T")[0],
         start_time: startTime,
         return_time: returnTime,
@@ -236,26 +376,49 @@ const VehicleBooking = () => {
         start_date: formatDateLocal(pickupDate),
         end_date: formatDateLocal(returnDate),
         user_id: user.id,
-        vehicle_name:
-          selectedVehicle.name ||
-          `${selectedVehicle.make} ${selectedVehicle.model}`,
+        // ===== DRIVERS_ID TEMPORARILY DISABLED =====
+        // driver_id: driverId, // COMMENTED OUT - temporarily disabled
+        driver_name: driverName,
+        name: driverName,
       };
-
-      if (driverOption === "with-driver" && selectedDriver) {
-        bookingData = {
-          ...bookingData,
-          driver_name: selectedDriver.name,
-        };
-
-        if (selectedDriver.id) {
-          bookingData = {
-            ...bookingData,
-            driver_id: selectedDriver.id,
-          };
-        }
-      }
       console.log("returnDate:", returnDate);
       console.log("Booking data to be inserted:", bookingData);
+      console.log("Selected vehicle:", selectedVehicle);
+      console.log("Booking data keys:", Object.keys(bookingData));
+
+      // Validate that we don't have any invalid column names
+      const validColumns = [
+        "vehicle_id",
+        "driver_option",
+        "vehicle_type",
+        "vehicle_name",
+        "make",
+        "model",
+        "license_plate",
+        "plate_number",
+        "booking_date",
+        "start_time",
+        "return_time",
+        "duration",
+        "status",
+        "payment_status",
+        "payment_method",
+        "total_amount",
+        "paid_amount",
+        "remaining_payments",
+        "start_date",
+        "end_date",
+        "user_id",
+        "driver_id",
+        "name",
+      ];
+
+      const invalidColumns = Object.keys(bookingData).filter(
+        (key) => !validColumns.includes(key),
+      );
+      if (invalidColumns.length > 0) {
+        console.error("Invalid columns detected:", invalidColumns);
+      }
       const { data, error } = await supabase
         .from("bookings")
         .insert([bookingData])
@@ -763,7 +926,16 @@ const VehicleBooking = () => {
                           : "text-green-500 font-bold"
                       }
                     >
-                      {formatCurrency(userSaldo, language)}
+                      {(() => {
+                        console.log(
+                          "🎯 VehicleBooking - Rendering user saldo:",
+                          userSaldo,
+                          "(type:",
+                          typeof userSaldo,
+                          ")",
+                        );
+                        return formatCurrency(userSaldo, language);
+                      })()}
                     </span>
                   </div>
                   {driverOption === "with-driver" && (
@@ -772,7 +944,7 @@ const VehicleBooking = () => {
                         {language === "id" ? "Biaya pengemudi" : "Driver fee"}
                         {selectedDriver && (
                           <span className="text-xs text-gray-500 ml-1">
-                            ({selectedDriver.name})
+                            ({selectedDriver.id})
                           </span>
                         )}
                       </span>

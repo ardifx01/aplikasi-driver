@@ -44,7 +44,7 @@ interface Payment {
   vehicle_name: string;
   vehicle_model?: string;
   license_plate?: string;
-  amount: number;
+  total_amount: number;
   paid_amount?: number;
   status: "paid" | "pending" | "overdue";
   date: Date;
@@ -59,7 +59,7 @@ interface RemainingPayment {
   vehicle_name: string;
   vehicle_model?: string;
   license_plate?: string;
-  amount: number;
+  total_amount: number;
   paid_amount?: number;
   due_date: Date;
   status: "upcoming" | "overdue";
@@ -117,76 +117,252 @@ const PaymentTracking = ({
         setLoading(true);
         setError(null);
 
-        let query = supabase.from("bookings").select(`
+        // Get current session first
+        const { data: sessionData } = await supabase.auth.getSession();
+        let currentUserId = userId;
+
+        if (!currentUserId && sessionData?.session?.user?.id) {
+          currentUserId = sessionData.session.user.id;
+        }
+
+        if (!currentUserId) {
+          console.error("No user ID available for fetching bookings");
+          setError("No user ID available");
+          setLoading(false);
+          return;
+        }
+
+        console.log(
+          "PaymentTracking - Fetching bookings for user ID:",
+          currentUserId,
+        );
+        console.log(
+          "PaymentTracking - Session user ID:",
+          sessionData?.session?.user?.id,
+        );
+        console.log("PaymentTracking - Prop user ID:", userId);
+
+        // Try multiple approaches to find bookings
+        let bookingsData = null;
+        let bookingsError = null;
+
+        // First try with the current user ID
+        const { data: directBookings, error: directError } = await supabase
+          .from("bookings")
+          .select(
+            `
             id,
             vehicle_id,
             vehicle_name,
+            license_plate,
             plate_number,
+            make,
+            model,
             user_id,
             booking_date,
             start_time,
             duration,
-            status,
+            bookings_status,
             payment_status,
             total_amount,
             paid_amount,
             payment_method,
             transaction_id,
-            created_at
-          `);
+            created_at,
+            remaining_payments
+          `,
+          )
+          .eq("user_id", currentUserId);
 
-        if (userId) {
-          query = query.eq("user_id", userId);
-          console.log("Filtering payments for user ID:", userId);
+        console.log(
+          "PaymentTracking - Direct bookings query result:",
+          directBookings?.length || 0,
+        );
+        console.log("PaymentTracking - Direct bookings error:", directError);
+
+        if (directBookings && directBookings.length > 0) {
+          bookingsData = directBookings;
         } else {
-          const { data: sessionData } = await supabase.auth.getSession();
-          if (sessionData?.session?.user?.id) {
-            query = query.eq("user_id", sessionData.session.user.id);
-            console.log(
-              "Filtering payments for current user:",
-              sessionData.session.user.id,
-            );
+          // If no bookings found with user_id, try with customer_id
+          const { data: customerBookings, error: customerError } =
+            await supabase
+              .from("bookings")
+              .select(
+                `
+              id,
+              vehicle_id,
+              vehicle_name,
+              license_plate,
+              plate_number,
+              make,
+              model,
+              user_id,
+              customer_id,
+              booking_date,
+              start_time,
+              duration,
+              bookings_status,
+              payment_status,
+              total_amount,
+              paid_amount,
+              payment_method,
+              transaction_id,
+              created_at,
+              remaining_payments
+            `,
+              )
+              .eq("customer_id", currentUserId);
+
+          console.log(
+            "PaymentTracking - Customer bookings query result:",
+            customerBookings?.length || 0,
+          );
+          console.log(
+            "PaymentTracking - Customer bookings error:",
+            customerError,
+          );
+
+          if (customerBookings && customerBookings.length > 0) {
+            bookingsData = customerBookings;
+          } else {
+            // If still no bookings, try to find by email if available
+            if (sessionData?.session?.user?.email) {
+              const userEmail = sessionData.session.user.email;
+              console.log(
+                "PaymentTracking - Trying to find user by email:",
+                userEmail,
+              );
+
+              // Check if there's a user record with this email that has bookings
+              const { data: userByEmail } = await supabase
+                .from("users")
+                .select("id")
+                .eq("email", userEmail)
+                .maybeSingle();
+
+              const { data: driverByEmail } = await supabase
+                .from("drivers")
+                .select("id")
+                .eq("email", userEmail)
+                .maybeSingle();
+
+              const emailUserId = userByEmail?.id || driverByEmail?.id;
+
+              if (emailUserId && emailUserId !== currentUserId) {
+                console.log(
+                  "PaymentTracking - Found user by email with ID:",
+                  emailUserId,
+                );
+                const { data: emailBookings, error: emailError } =
+                  await supabase
+                    .from("bookings")
+                    .select(
+                      `
+                    id,
+                    vehicle_id,
+                    vehicle_name,
+                    license_plate,
+                    plate_number,
+                    make,
+                    model,
+                    user_id,
+                    customer_id,
+                    booking_date,
+                    start_time,
+                    duration,
+                    bookings_status,
+                    payment_status,
+                    total_amount,
+                    paid_amount,
+                    payment_method,
+                    transaction_id,
+                    created_at,
+                    remaining_payments
+                  `,
+                    )
+                    .or(
+                      `user_id.eq.${emailUserId},customer_id.eq.${emailUserId}`,
+                    );
+
+                console.log(
+                  "PaymentTracking - Email bookings query result:",
+                  emailBookings?.length || 0,
+                );
+                if (emailBookings && emailBookings.length > 0) {
+                  bookingsData = emailBookings;
+                }
+              }
+            }
           }
         }
 
-        const { data, error } = await query;
+        // If still no data, get all bookings for debugging (remove in production)
+        if (!bookingsData || bookingsData.length === 0) {
+          console.log(
+            "PaymentTracking - No bookings found, checking total bookings in database...",
+          );
+          const { data: allBookings, error: allError } = await supabase
+            .from("bookings")
+            .select("id, user_id, customer_id")
+            .limit(10);
 
-        if (error) {
-          throw error;
+          console.log(
+            "PaymentTracking - Sample bookings in database:",
+            allBookings,
+          );
+          console.log(
+            "PaymentTracking - Total bookings sample error:",
+            allError,
+          );
         }
 
-        if (data) {
-          console.log("Fetched bookings for payment tracking:", data.length);
-          const transformedBookings: Booking[] = data.map((booking) => ({
-            id: booking.id,
-            vehicle_id: booking.vehicle_id,
-            vehicle_name: booking.vehicle_name || "Unknown Vehicle",
-            vehicle_model:
-              booking.vehicle_model ||
-              (booking.make && booking.model
-                ? `${booking.make} ${booking.model}`
-                : undefined),
-            license_plate: booking.plate_number,
-            user_id: booking.user_id,
-            booking_date: new Date(booking.booking_date),
-            start_time: booking.start_time,
-            duration: booking.duration,
-            status: booking.status,
-            payment_status: booking.payment_status,
-            total_amount: booking.total_amount,
-            paid_amount: booking.paid_amount,
-            payment_method: booking.payment_method,
-            transaction_id: booking.transaction_id,
-            created_at: new Date(booking.created_at),
-            booking_code: booking.booking_code,
-            remaining_payments: booking.remaining_payments,
-          }));
+        if (bookingsData && bookingsData.length > 0) {
+          console.log(
+            "PaymentTracking - Successfully fetched bookings:",
+            bookingsData.length,
+          );
+          const transformedBookings: Booking[] = bookingsData.map(
+            (booking) => ({
+              id: booking.id,
+              vehicle_id: booking.vehicle_id || "",
+              vehicle_name: booking.vehicle_name || "Unknown Vehicle",
+              vehicle_model:
+                booking.make && booking.model
+                  ? `${booking.make} ${booking.model}`
+                  : undefined,
+              license_plate:
+                booking.license_plate ||
+                booking.plate_number ||
+                "Unknown Plate",
+              user_id: booking.user_id || booking.customer_id || "",
+              booking_date: new Date(booking.booking_date || new Date()),
+              start_time: booking.start_time || "00:00",
+              duration: booking.duration || 1,
+              status: booking.bookings_status || "pending",
+              payment_status: booking.payment_status || "pending",
+              total_amount: booking.total_amount || 0,
+              paid_amount: booking.paid_amount || 0,
+              payment_method: booking.payment_method || "Unknown",
+              transaction_id: booking.transaction_id || "",
+              created_at: new Date(booking.created_at || new Date()),
+              remaining_payments: booking.remaining_payments || 0,
+            }),
+          );
 
           setBookings(transformedBookings);
           processBookingsIntoPayments(transformedBookings);
+          console.log(
+            "PaymentTracking - Processed bookings into payments:",
+            transformedBookings.length,
+          );
+        } else {
+          console.log("PaymentTracking - No bookings found for user");
+          setBookings([]);
+          setPayments([]);
+          setRemainingPayments([]);
         }
       } catch (err) {
-        console.error("Error fetching bookings:", err);
+        console.error("PaymentTracking - Error fetching bookings:", err);
         setError("Failed to fetch bookings. Please try again later.");
       } finally {
         setLoading(false);
@@ -200,20 +376,18 @@ const PaymentTracking = ({
     const today = new Date();
     const processedPayments: Payment[] = [];
     const processedRemainingPayments: RemainingPayment[] = [];
-    let pending = 0;
 
     bookings.forEach((booking) => {
+      console.log("Processing booking:", booking);
+
+      // Create payment entry from booking
       const paymentObj: Payment = {
         id: booking.id,
-        booking_id: `BK-${booking.id}`,
+        booking_id: booking.id,
         vehicle_name: booking.vehicle_name || "Unknown Vehicle",
-        vehicle_model:
-          booking.vehicle_model ||
-          (booking.make && booking.model
-            ? `${booking.make} ${booking.model}`
-            : undefined),
+        vehicle_model: booking.vehicle_model,
         license_plate: booking.license_plate,
-        amount: booking.total_amount,
+        total_amount: booking.total_amount,
         paid_amount: booking.paid_amount,
         status:
           booking.payment_status === "paid"
@@ -229,85 +403,44 @@ const PaymentTracking = ({
 
       processedPayments.push(paymentObj);
 
+      // Create remaining payment if there's an outstanding balance
       if (booking.remaining_payments && booking.remaining_payments > 0) {
-        pending += booking.remaining_payments;
+        const remainingPaymentObj: RemainingPayment = {
+          id: `${booking.id}-remaining`,
+          booking_id: booking.id,
+          vehicle_name: booking.vehicle_name || "Unknown Vehicle",
+          vehicle_model: booking.vehicle_model,
+          license_plate: booking.license_plate,
+          total_amount: booking.remaining_payments,
+          paid_amount: booking.paid_amount,
+          due_date: booking.booking_date,
+          status: booking.booking_date < today ? "overdue" : "upcoming",
+        };
+        processedRemainingPayments.push(remainingPaymentObj);
       } else if (
-        booking.payment_status === "unpaid" ||
-        booking.payment_status === "pending"
+        booking.payment_status !== "paid" &&
+        booking.total_amount > (booking.paid_amount || 0)
       ) {
         const remainingAmount =
           booking.total_amount - (booking.paid_amount || 0);
         if (remainingAmount > 0) {
-          pending += remainingAmount;
+          const remainingPaymentObj: RemainingPayment = {
+            id: `${booking.id}-remaining`,
+            booking_id: booking.id,
+            vehicle_name: booking.vehicle_name || "Unknown Vehicle",
+            vehicle_model: booking.vehicle_model,
+            license_plate: booking.license_plate,
+            total_amount: remainingAmount,
+            paid_amount: booking.paid_amount,
+            due_date: booking.booking_date,
+            status: booking.booking_date < today ? "overdue" : "upcoming",
+          };
+          processedRemainingPayments.push(remainingPaymentObj);
         }
       }
     });
 
     setPayments(processedPayments);
-    setRemainingPayments(processedRemainingPayments);
-  };
-
-  const processBookingsIntoRemainingPayments = (bookings: Booking[]) => {
-    const today = new Date();
-    const processedRemainingPayments: RemainingPayment[] = [];
-
-    const paidBookings = new Set();
-
-    bookings.forEach((booking) => {
-      if (booking.payment_status === "paid") {
-        paidBookings.add(booking.id);
-      }
-    });
-
-    bookings.forEach((booking) => {
-      if (paidBookings.has(booking.id)) {
-        return;
-      }
-
-      // Check for remaining payments in two ways:
-      // 1. If booking has remaining_payments field
-      if (booking.remaining_payments && booking.remaining_payments > 0) {
-        const remainingPaymentObj: RemainingPayment = {
-          id: `${booking.id}-remaining`,
-          booking_id: `BK-${booking.id}`,
-          vehicle_name: booking.vehicle_name || "Unknown Vehicle",
-          license_plate: booking.license_plate,
-          amount: booking.remaining_payments,
-          paid_amount: booking.paid_amount,
-          due_date: booking.booking_date,
-          status: isBefore(booking.booking_date, today)
-            ? "overdue"
-            : "upcoming",
-        };
-
-        processedRemainingPayments.push(remainingPaymentObj);
-      }
-      // 2. If booking has partial payment (paid_amount < total_amount)
-      else if (
-        booking.payment_status !== "paid" &&
-        booking.paid_amount !== undefined &&
-        booking.paid_amount < booking.total_amount
-      ) {
-        const remainingAmount =
-          booking.total_amount - (booking.paid_amount || 0);
-
-        const remainingPaymentObj: RemainingPayment = {
-          id: `${booking.id}-remaining`,
-          booking_id: `BK-${booking.id}`,
-          vehicle_name: booking.vehicle_name || "Unknown Vehicle",
-          license_plate: booking.license_plate,
-          amount: remainingAmount,
-          paid_amount: booking.paid_amount,
-          due_date: booking.booking_date,
-          status: isBefore(booking.booking_date, today)
-            ? "overdue"
-            : "upcoming",
-        };
-
-        processedRemainingPayments.push(remainingPaymentObj);
-      }
-    });
-
     setRemainingPayments(processedRemainingPayments);
   };
 
@@ -345,65 +478,149 @@ const PaymentTracking = ({
 
   const totalPaid = payments
     .filter((payment) => payment.status === "paid")
-    .reduce((sum, payment) => sum + (payment.amount || 0), 0);
+    .reduce((sum, payment) => sum + (payment.total_amount || 0), 0);
 
   const totalPending = [
     ...payments.filter((payment) => payment.status === "pending"),
     ...remainingPayments,
-  ].reduce((sum, payment) => sum + (payment.amount || 0), 0);
+  ].reduce((sum, payment) => sum + (payment.total_amount || 0), 0);
 
   useEffect(() => {
     const fetchDriverSaldo = async () => {
-      if (userId) {
-        try {
-          if (userId) {
-            try {
-              const { data, error } = await supabase
-                .from("drivers")
-                .select("saldo")
-                .eq("id", userId)
-                .single();
+      try {
+        // First try to get current user ID if not provided
+        let currentUserId = userId;
+        const { data: sessionData } = await supabase.auth.getSession();
+        const sessionUserEmail = sessionData?.session?.user?.email;
 
-              if (error) {
-                console.error("Error fetching driver saldo:", error);
-                const { data: userData, error: userError } = await supabase
-                  .from("users")
-                  .select("saldo")
-                  .eq("id", userId)
-                  .single();
-
-                if (!userError && userData && userData.saldo !== undefined) {
-                  console.log(
-                    "Driver saldo from users table in PaymentTracking:",
-                    userData.saldo,
-                  );
-                  setUserSaldo(userData.saldo);
-                  return;
-                }
-                return;
-              }
-
-              console.log("Driver saldo data in PaymentTracking:", data);
-              if (data && data.saldo !== undefined) {
-                setUserSaldo(data.saldo);
-              }
-            } catch (error) {
-              console.error("Error in fetchDriverSaldo:", error);
-            }
+        if (!currentUserId) {
+          if (sessionData?.session?.user?.id) {
+            currentUserId = sessionData.session.user.id;
+          } else {
+            console.log("No user ID available for saldo fetch");
+            return;
           }
-        } catch (error) {
-          console.error("Error in fetchDriverSaldo:", error);
         }
+
+        console.log(
+          "PaymentTracking - Fetching saldo for user ID:",
+          currentUserId,
+        );
+        console.log("PaymentTracking - Session user email:", sessionUserEmail);
+
+        // Try drivers table first by ID
+        let { data: driverData, error: driverError } = await supabase
+          .from("drivers")
+          .select("saldo, id, email")
+          .eq("id", currentUserId)
+          .maybeSingle();
+
+        console.log("🔍 PaymentTracking - driverData by ID:", driverData);
+        console.log("❗ PaymentTracking - driverError:", driverError);
+
+        // If no driver found by ID, try by email
+        if (!driverData && sessionUserEmail) {
+          const { data: driverByEmail, error: driverByEmailError } =
+            await supabase
+              .from("drivers")
+              .select("saldo, id, email")
+              .eq("email", sessionUserEmail)
+              .maybeSingle();
+
+          console.log(
+            "🔍 PaymentTracking - driverData by email:",
+            driverByEmail,
+          );
+          console.log(
+            "❗ PaymentTracking - driverByEmailError:",
+            driverByEmailError,
+          );
+
+          if (driverByEmail) {
+            driverData = driverByEmail;
+          }
+        }
+
+        if (driverData) {
+          const saldoValue = Number(driverData.saldo) || 0;
+          console.log(
+            "✅ PaymentTracking - Driver saldo from drivers table:",
+            saldoValue,
+            "(raw:",
+            driverData.saldo,
+            ")",
+          );
+          setUserSaldo(saldoValue);
+          return;
+        }
+
+        console.log("Driver not found in drivers table, trying users table");
+
+        // Fallback to users table by ID
+        let { data: userData, error: userError } = await supabase
+          .from("users")
+          .select("saldo, id, email")
+          .eq("id", currentUserId)
+          .maybeSingle();
+
+        console.log("🔍 PaymentTracking - userData by ID:", userData);
+        console.log("❗ PaymentTracking - userError:", userError);
+
+        // If no user found by ID, try by email
+        if (!userData && sessionUserEmail) {
+          const { data: userByEmail, error: userByEmailError } = await supabase
+            .from("users")
+            .select("saldo, id, email")
+            .eq("email", sessionUserEmail)
+            .maybeSingle();
+
+          console.log("🔍 PaymentTracking - userData by email:", userByEmail);
+          console.log(
+            "❗ PaymentTracking - userByEmailError:",
+            userByEmailError,
+          );
+
+          if (userByEmail) {
+            userData = userByEmail;
+          }
+        }
+
+        if (userData) {
+          const saldoValue = Number(userData.saldo) || 0;
+          console.log(
+            "✅ PaymentTracking - Driver saldo from users table:",
+            saldoValue,
+            "(raw:",
+            userData.saldo,
+            ")",
+          );
+          setUserSaldo(saldoValue);
+        } else {
+          console.log("No user found in either table, setting saldo to 0");
+          setUserSaldo(0);
+        }
+      } catch (error) {
+        console.error("Error in fetchDriverSaldo:", error);
+        setUserSaldo(0);
       }
     };
 
-    if (driverSaldo !== undefined) {
+    if (driverSaldo !== undefined && driverSaldo !== null) {
+      const saldoValue = Number(driverSaldo) || 0;
       console.log(
-        "Using driverSaldo from props in PaymentTracking:",
+        "✅ PaymentTracking - Using driverSaldo from props:",
+        saldoValue,
+        "(raw:",
         driverSaldo,
+        ", type:",
+        typeof driverSaldo,
+        ")",
       );
-      setUserSaldo(driverSaldo);
+      setUserSaldo(saldoValue);
     } else {
+      console.log(
+        "🔍 PaymentTracking - Prop saldo not available, fetching from database",
+      );
       fetchDriverSaldo();
     }
   }, [userId, driverSaldo]);
@@ -509,9 +726,18 @@ const PaymentTracking = ({
                   <DollarSign className="mr-2 h-4 w-4 text-primary" />
                   <span className="text-2xl font-bold">
                     Rp{" "}
-                    {typeof userSaldo === "number"
-                      ? userSaldo.toLocaleString()
-                      : "0"}
+                    {(() => {
+                      const saldoValue =
+                        typeof userSaldo === "number" ? userSaldo : 0;
+                      console.log(
+                        "🎯 PaymentTracking - Rendering saldo:",
+                        saldoValue,
+                        "(type:",
+                        typeof userSaldo,
+                        ")",
+                      );
+                      return saldoValue.toLocaleString();
+                    })()}
                   </span>
                 </div>
               </CardContent>
@@ -611,12 +837,13 @@ const PaymentTracking = ({
                                 <div className="text-right">
                                   <p className="font-medium">
                                     Rp{" "}
-                                    {payment.amount
-                                      ? payment.amount.toLocaleString()
+                                    {payment.total_amount
+                                      ? payment.total_amount.toLocaleString()
                                       : "0"}
                                   </p>
                                   {payment.paid_amount !== undefined &&
-                                    payment.paid_amount < payment.amount && (
+                                    payment.paid_amount <
+                                      payment.total_amount && (
                                       <p className="text-xs text-muted-foreground">
                                         Paid: Rp{" "}
                                         {payment.paid_amount !== null
@@ -689,7 +916,7 @@ const PaymentTracking = ({
                                 </div>
                               )}
                               {payment.paid_amount !== undefined &&
-                                payment.paid_amount < payment.amount && (
+                                payment.paid_amount < payment.total_amount && (
                                   <div>
                                     <p className="text-sm font-medium">
                                       Payment Status
@@ -701,9 +928,9 @@ const PaymentTracking = ({
                                         : "0"}
                                       <br />
                                       Remaining: Rp{" "}
-                                      {payment.amount
+                                      {payment.total_amount
                                         ? (
-                                            payment.amount -
+                                            payment.total_amount -
                                             (payment.paid_amount || 0)
                                           ).toLocaleString()
                                         : "0"}
@@ -783,8 +1010,8 @@ const PaymentTracking = ({
                                 <div className="text-right">
                                   <p className="font-medium">
                                     Rp{" "}
-                                    {payment.amount
-                                      ? payment.amount.toLocaleString()
+                                    {payment.total_amount
+                                      ? payment.total_amount.toLocaleString()
                                       : "0"}
                                   </p>
                                   {payment.paid_amount !== undefined &&
@@ -837,8 +1064,8 @@ const PaymentTracking = ({
                                         : "0"}
                                       <br />
                                       Remaining: Rp{" "}
-                                      {payment.amount
-                                        ? payment.amount.toLocaleString()
+                                      {payment.total_amount
+                                        ? payment.total_amount.toLocaleString()
                                         : "0"}
                                     </p>
                                   </div>

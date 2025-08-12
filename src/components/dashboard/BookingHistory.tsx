@@ -1,4 +1,4 @@
-import React, { useState, useEffect, Fragment } from "react";
+import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { createClient } from "@supabase/supabase-js";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -64,6 +64,8 @@ interface Booking {
   status: "pending" | "approved" | "rejected";
   payment_method: string;
   total_amount: number;
+  paid_amount?: number;
+  remaining_payments?: number;
   user_id?: string;
 }
 
@@ -131,13 +133,48 @@ const BookingHistory = ({ userId, driverSaldo }: BookingHistoryProps = {}) => {
     const fetchBookings = async () => {
       try {
         setLoading(true);
+        setError(null);
 
-        // Create a query that can be filtered by user_id if provided
-        let query = supabase.from("bookings").select(
-          `
+        // Get current session first
+        const { data: sessionData } = await supabase.auth.getSession();
+        let currentUserId = userId;
+
+        if (!currentUserId && sessionData?.session?.user?.id) {
+          currentUserId = sessionData.session.user.id;
+        }
+
+        if (!currentUserId) {
+          console.error("No user ID available for fetching bookings");
+          setError("No user ID available");
+          setLoading(false);
+          return;
+        }
+
+        console.log(
+          "BookingHistory - Fetching bookings for user ID:",
+          currentUserId,
+        );
+        console.log(
+          "BookingHistory - Session user ID:",
+          sessionData?.session?.user?.id,
+        );
+        console.log("BookingHistory - Prop user ID:", userId);
+
+        // Try multiple approaches to find bookings
+        let bookingsData = null;
+        let bookingsError = null;
+
+        // First try with the current user ID
+        const { data: directBookings, error: directError } = await supabase
+          .from("bookings")
+          .select(
+            `
             id,
             license_plate,
+            plate_number,
             make,
+            model,
+            bookings_status,
             status,
             booking_date,
             total_amount,
@@ -146,43 +183,168 @@ const BookingHistory = ({ userId, driverSaldo }: BookingHistoryProps = {}) => {
             start_time,
             duration,
             payment_method,
-            user_id
+            user_id,
+            customer_id,
+            paid_amount,
+            remaining_payments
           `,
+          )
+          .eq("user_id", currentUserId);
+
+        console.log(
+          "BookingHistory - Direct bookings query result:",
+          directBookings?.length || 0,
         );
+        console.log("BookingHistory - Direct bookings error:", directError);
 
-        // Filter by user_id if provided
-        if (userId) {
-          query = query.eq("user_id", userId);
+        if (directBookings && directBookings.length > 0) {
+          bookingsData = directBookings;
+        } else {
+          // If no bookings found with user_id, try with customer_id
+          const { data: customerBookings, error: customerError } =
+            await supabase
+              .from("bookings")
+              .select(
+                `
+              id,
+              license_plate,
+              plate_number,
+              make,
+              model,
+              bookings_status,
+              status,
+              booking_date,
+              total_amount,
+              vehicle_name,
+              vehicle_type,
+              start_time,
+              duration,
+              payment_method,
+              user_id,
+              customer_id,
+              paid_amount,
+              remaining_payments
+            `,
+              )
+              .eq("customer_id", currentUserId);
+
+          console.log(
+            "BookingHistory - Customer bookings query result:",
+            customerBookings?.length || 0,
+          );
+          console.log(
+            "BookingHistory - Customer bookings error:",
+            customerError,
+          );
+
+          if (customerBookings && customerBookings.length > 0) {
+            bookingsData = customerBookings;
+          } else {
+            // If still no bookings, try to find by email if available
+            if (sessionData?.session?.user?.email) {
+              const userEmail = sessionData.session.user.email;
+              console.log(
+                "BookingHistory - Trying to find user by email:",
+                userEmail,
+              );
+
+              // Check if there's a user record with this email that has bookings
+              const { data: userByEmail } = await supabase
+                .from("users")
+                .select("id")
+                .eq("email", userEmail)
+                .maybeSingle();
+
+              const { data: driverByEmail } = await supabase
+                .from("drivers")
+                .select("id")
+                .eq("email", userEmail)
+                .maybeSingle();
+
+              const emailUserId = userByEmail?.id || driverByEmail?.id;
+
+              if (emailUserId && emailUserId !== currentUserId) {
+                console.log(
+                  "BookingHistory - Found user by email with ID:",
+                  emailUserId,
+                );
+                const { data: emailBookings, error: emailError } =
+                  await supabase
+                    .from("bookings")
+                    .select(
+                      `
+                    id,
+                    license_plate,
+                    plate_number,
+                    make,
+                    model,
+                    bookings_status,
+                    status,
+                    booking_date,
+                    total_amount,
+                    vehicle_name,
+                    vehicle_type,
+                    start_time,
+                    duration,
+                    payment_method,
+                    user_id,
+                    customer_id,
+                    paid_amount,
+                    remaining_payments
+                  `,
+                    )
+                    .or(
+                      `user_id.eq.${emailUserId},customer_id.eq.${emailUserId}`,
+                    );
+
+                console.log(
+                  "BookingHistory - Email bookings query result:",
+                  emailBookings?.length || 0,
+                );
+                if (emailBookings && emailBookings.length > 0) {
+                  bookingsData = emailBookings;
+                }
+              }
+            }
+          }
         }
 
-        const { data, error } = await query;
+        if (bookingsData && bookingsData.length > 0) {
+          console.log(
+            "BookingHistory - Successfully fetched bookings:",
+            bookingsData.length,
+          );
+          // Transform the data to match our Booking interface
+          const formattedBookings = bookingsData.map((booking) => ({
+            id: booking.id,
+            vehicle_name: booking.model || "Unknown Vehicle",
+            vehicle_type: booking.vehicle_type || "Unknown Type",
+            booking_date: new Date(booking.booking_date),
+            start_time: booking.start_time || "00:00",
+            duration: booking.duration || 0,
+            status: booking.bookings_status || booking.status || "pending",
+            payment_method: booking.payment_method || "Unknown",
+            total_amount: booking.total_amount || 0,
+            paid_amount: booking.paid_amount || 0,
+            remaining_payments: booking.remaining_payments || 0,
+            user_id: booking.user_id || booking.customer_id,
+            license_plate:
+              booking.license_plate || booking.plate_number || "Unknown Plate",
+            vehicle_make: booking.make || "Unknown Make",
+          }));
 
-        console.log("Bookings data for user:", userId, data);
-
-        if (error) {
-          throw error;
+          setMockBookings(formattedBookings);
+          console.log(
+            "BookingHistory - Processed bookings:",
+            formattedBookings.length,
+          );
+        } else {
+          console.log("BookingHistory - No bookings found for user");
+          setMockBookings([]);
         }
-
-        // Transform the data to match our Booking interface
-        const formattedBookings = data.map((booking) => ({
-          id: booking.id,
-          vehicle_name: booking.vehicle_name || "Unknown Vehicle",
-          vehicle_type: booking.vehicle_type || "Unknown Type",
-          booking_date: new Date(booking.booking_date),
-          start_time: booking.start_time || "00:00",
-          duration: booking.duration || 0,
-          status: booking.status || "pending",
-          payment_method: booking.payment_method || "Unknown",
-          total_amount: booking.total_amount || 0,
-          user_id: booking.user_id,
-          license_plate: booking.license_plate,
-          vehicle_make: booking.make || "Unknown Make",
-        }));
-
-        setMockBookings(formattedBookings);
       } catch (error) {
-        console.error("Error fetching bookings:", error);
-        setError("Failed to fetch bookings");
+        console.error("BookingHistory - Error fetching bookings:", error);
+        setError("Failed to fetch bookings. Please try again later.");
       } finally {
         setLoading(false);
       }
@@ -205,21 +367,44 @@ const BookingHistory = ({ userId, driverSaldo }: BookingHistoryProps = {}) => {
     const fetchPayments = async () => {
       try {
         setLoading(true);
+
+        // Get current session first
+        const { data: sessionData } = await supabase.auth.getSession();
+        let currentUserId = userId;
+
+        if (!currentUserId && sessionData?.session?.user?.id) {
+          currentUserId = sessionData.session.user.id;
+        }
+
+        if (!currentUserId) {
+          console.log(
+            "BookingHistory - No user ID available for payments fetch",
+          );
+          setPayments([]);
+          setLoading(false);
+          return;
+        }
+
         let query = supabase
           .from("payments")
           .select(
-            "id, booking_id, amount, paid_amount, status, created_at, due_date, transaction_id, payment_method, bookings(vehicle_name)",
+            "id, booking_id, total_amount, amount, paid_amount, status, created_at, due_date, transaction_id, payment_method, user_id",
           );
+
+        // Filter by user_id if available
+        if (currentUserId) {
+          query = query.eq("user_id", currentUserId);
+        }
 
         // Apply date filter if set
         if (dateRange.from) {
           const fromDate = format(dateRange.from, "yyyy-MM-dd");
-          query = query.gte("date", fromDate);
+          query = query.gte("created_at", fromDate);
         }
 
         if (dateRange.to) {
           const toDate = format(dateRange.to, "yyyy-MM-dd");
-          query = query.lte("date", toDate);
+          query = query.lte("created_at", toDate);
         }
 
         const { data, error } = await query;
@@ -227,26 +412,48 @@ const BookingHistory = ({ userId, driverSaldo }: BookingHistoryProps = {}) => {
         if (error) {
           throw error;
         }
-        console.log("Raw payment data:", data);
-        console.log("Payments data:", data);
+        console.log("BookingHistory - Raw payment data:", data);
+        console.log("BookingHistory - Payments data:", data);
 
-        // Transform the data to match our Payment interface
-        const formattedPayments = data.map((payment) => ({
-          id: payment.id,
-          booking_id: payment.booking_id || "",
-          vehicle_name: payment.bookings?.vehicle_name || "Unknown Vehicle",
-          amount: payment.amount || 0,
-          paid_amount: payment.paid_amount,
-          status: payment.status || "pending",
-          date: payment.created_at ? new Date(payment.created_at) : null,
-          due_date: payment.due_date ? new Date(payment.due_date) : undefined,
-          transaction_id: payment.transaction_id,
-          payment_method: payment.payment_method,
-        }));
+        // Get vehicle names from bookings for each payment
+        const paymentsWithVehicles = await Promise.all(
+          data.map(async (payment) => {
+            let vehicleName = "Unknown Vehicle";
+
+            if (payment.booking_id) {
+              const { data: bookingData } = await supabase
+                .from("bookings")
+                .select("vehicle_name")
+                .eq("id", payment.booking_id)
+                .single();
+
+              if (bookingData?.vehicle_name) {
+                vehicleName = bookingData.vehicle_name;
+              }
+            }
+
+            return {
+              id: payment.id,
+              booking_id: payment.booking_id || "",
+              vehicle_name: vehicleName,
+              amount: payment.total_amount || payment.amount || 0,
+              paid_amount: payment.paid_amount,
+              status: payment.status || "pending",
+              date: payment.created_at ? new Date(payment.created_at) : null,
+              due_date: payment.due_date
+                ? new Date(payment.due_date)
+                : undefined,
+              transaction_id: payment.transaction_id,
+              payment_method: payment.payment_method,
+            };
+          }),
+        );
+
+        const formattedPayments = paymentsWithVehicles;
 
         setPayments(formattedPayments);
       } catch (error) {
-        console.error("Error fetching payments:", error);
+        console.error("BookingHistory - Error fetching payments:", error);
         setError("Failed to fetch payments");
       } finally {
         setLoading(false);
@@ -254,7 +461,7 @@ const BookingHistory = ({ userId, driverSaldo }: BookingHistoryProps = {}) => {
     };
 
     fetchPayments();
-  }, [dateRange.from, dateRange.to]);
+  }, [dateRange.from, dateRange.to, userId]);
 
   // Check for overdue payments - Fix for Maximum update depth exceeded error
   useEffect(() => {
@@ -295,16 +502,50 @@ const BookingHistory = ({ userId, driverSaldo }: BookingHistoryProps = {}) => {
     const fetchRemainingPayments = async () => {
       try {
         setLoading(true);
+
+        // Get current session first
+        const { data: sessionData } = await supabase.auth.getSession();
+        let currentUserId = userId;
+
+        if (!currentUserId && sessionData?.session?.user?.id) {
+          currentUserId = sessionData.session.user.id;
+        }
+
+        if (!currentUserId) {
+          console.log(
+            "BookingHistory - No user ID available for remaining payments fetch",
+          );
+          setRemainingPayments([]);
+          setLoading(false);
+          return;
+        }
+
+        // First get bookings for this user to find remaining payments
+        const { data: userBookings } = await supabase
+          .from("bookings")
+          .select(
+            "id, user_id, customer_id, vehicle_name, total_amount, paid_amount, remaining_payments",
+          )
+          .or(`user_id.eq.${currentUserId},customer_id.eq.${currentUserId}`);
+
+        if (!userBookings || userBookings.length === 0) {
+          console.log(
+            "BookingHistory - No bookings found for remaining payments",
+          );
+          setRemainingPayments([]);
+          setLoading(false);
+          return;
+        }
+
+        const bookingIds = userBookings.map((b) => b.id);
+
         let query = supabase.from("remaining_payments").select(`
-            *,
-            bookings(vehicle_name, user_id),
-            payments(id, status, payment_method, transaction_id, paid_amount)
+            *
           `);
 
-        // Filter by user_id if provided
-        if (userId) {
-          // Filter remaining payments where the associated booking belongs to the user
-          query = query.eq("bookings.user_id", userId);
+        // Filter by booking IDs that belong to the user
+        if (bookingIds.length > 0) {
+          query = query.in("booking_id", bookingIds);
         }
 
         // Apply date filter if set
@@ -321,32 +562,91 @@ const BookingHistory = ({ userId, driverSaldo }: BookingHistoryProps = {}) => {
         const { data, error } = await query;
 
         if (error) {
-          throw error;
+          console.error(
+            "BookingHistory - Error fetching remaining payments:",
+            error,
+          );
+          // Create remaining payments from bookings data if table query fails
+          const remainingFromBookings = userBookings
+            .filter((booking) => (booking.remaining_payments || 0) > 0)
+            .map((booking) => ({
+              id: `${booking.id}-remaining`,
+              booking_id: booking.id,
+              vehicle_name: booking.vehicle_name || "Unknown Vehicle",
+              amount: booking.remaining_payments || 0,
+              paid_amount: booking.paid_amount,
+              due_date: new Date(), // Use current date as fallback
+              status: "upcoming" as const,
+              payment_method: undefined,
+              transaction_id: undefined,
+            }));
+
+          setRemainingPayments(remainingFromBookings);
+          console.log(
+            "BookingHistory - Using remaining payments from bookings:",
+            remainingFromBookings,
+          );
+        } else {
+          // Get vehicle names and payment details for each remaining payment
+          const remainingPaymentsWithDetails = await Promise.all(
+            data.map(async (payment) => {
+              let vehicleName = "Unknown Vehicle";
+              let paymentDetails = null;
+
+              if (payment.booking_id) {
+                // Get vehicle name from bookings
+                const { data: bookingData } = await supabase
+                  .from("bookings")
+                  .select("vehicle_name")
+                  .eq("id", payment.booking_id)
+                  .single();
+
+                if (bookingData?.vehicle_name) {
+                  vehicleName = bookingData.vehicle_name;
+                }
+
+                // Get payment details if payment_id exists
+                if (payment.payment_id) {
+                  const { data: paymentData } = await supabase
+                    .from("payments")
+                    .select(
+                      "id, status, payment_method, transaction_id, paid_amount",
+                    )
+                    .eq("id", payment.payment_id)
+                    .single();
+
+                  if (paymentData) {
+                    paymentDetails = paymentData;
+                  }
+                }
+              }
+
+              return {
+                id: payment.id,
+                booking_id: payment.booking_id || "",
+                vehicle_name: vehicleName,
+                amount: payment.remaining_amount || payment.total_amount || 0,
+                paid_amount: paymentDetails?.paid_amount || payment.paid_amount,
+                due_date: new Date(payment.created_at), // Use created_at as fallback for due_date
+                status:
+                  paymentDetails?.status === "overdue" ? "overdue" : "upcoming",
+                payment_method: paymentDetails?.payment_method,
+                transaction_id: paymentDetails?.transaction_id,
+              };
+            }),
+          );
+
+          console.log(
+            "BookingHistory - Remaining payments with details:",
+            remainingPaymentsWithDetails,
+          );
+          setRemainingPayments(remainingPaymentsWithDetails);
         }
-
-        // Transform the data to match our RemainingPayment interface
-        const formattedRemainingPayments = data.map((payment) => ({
-          id: payment.id,
-          booking_id: payment.booking_id || "",
-          vehicle_name: payment.bookings?.vehicle_name || "Unknown Vehicle",
-          amount: payment.amount || 0,
-          paid_amount: payment.payments?.paid_amount || payment.paid_amount,
-          due_date: new Date(payment.due_date),
-          status:
-            payment.payments?.status === "overdue"
-              ? "overdue"
-              : payment.status || "upcoming",
-          payment_method: payment.payments?.payment_method,
-          transaction_id: payment.payments?.transaction_id,
-        }));
-
-        console.log(
-          "Remaining payments with payment data:",
-          formattedRemainingPayments,
-        );
-        setRemainingPayments(formattedRemainingPayments);
       } catch (error) {
-        console.error("Error fetching remaining payments:", error);
+        console.error(
+          "BookingHistory - Error fetching remaining payments:",
+          error,
+        );
         setError("Failed to fetch remaining payments");
       } finally {
         setLoading(false);
@@ -492,9 +792,56 @@ const BookingHistory = ({ userId, driverSaldo }: BookingHistoryProps = {}) => {
         return "default";
       case "rejected":
         return "destructive";
+      case "paid":
+        return "default";
       default:
         return "default";
     }
+  };
+
+  // Helper function to check if booking is fully paid
+  const isBookingFullyPaid = (booking: Booking): boolean => {
+    const paidAmount = booking.paid_amount || 0;
+    return paidAmount >= booking.total_amount;
+  };
+
+  // Helper function to get payment status display
+  const getPaymentStatusDisplay = (booking: Booking): string => {
+    const remainingAmount = getRemainingPayment(booking);
+    if (remainingAmount === 0) {
+      return "Sudah Dibayar";
+    }
+    const paidAmount = booking.paid_amount || 0;
+    if (paidAmount > 0) {
+      return "Sebagian";
+    }
+    return "Belum Bayar";
+  };
+
+  // Helper function to get remaining payment amount
+  const getRemainingPayment = (booking: Booking): number => {
+    const totalAmount = booking.total_amount || 0;
+    const paidAmount = booking.paid_amount || 0;
+    const remainingAmount = Math.max(0, totalAmount - paidAmount);
+    return remainingAmount;
+  };
+
+  // Helper function to check if booking can be paid
+  const canBookingBePaid = (booking: Booking): boolean => {
+    return getRemainingPayment(booking) > 0;
+  };
+
+  // Helper function to get payment status badge variant
+  const getPaymentStatusBadgeVariant = (booking: Booking) => {
+    const remainingAmount = getRemainingPayment(booking);
+    if (remainingAmount === 0) {
+      return "default"; // Green for fully paid
+    }
+    const paidAmount = booking.paid_amount || 0;
+    if (paidAmount > 0) {
+      return "secondary"; // Blue for partial payment
+    }
+    return "destructive"; // Red for unpaid
   };
 
   // Reset all filters
@@ -738,137 +1085,207 @@ const BookingHistory = ({ userId, driverSaldo }: BookingHistoryProps = {}) => {
                               <TableHead>Waktu Mulai</TableHead>
                               <TableHead>Durasi</TableHead>
                               <TableHead>Booking Status</TableHead>
+                              <TableHead>Total Harga</TableHead>
                               <TableHead>Pembayaran</TableHead>
+                              <TableHead>Sisa Pembayaran</TableHead>
+                              <TableHead>Status Pembayaran</TableHead>
                               <TableHead>Aksi</TableHead>
                             </TableRow>
                           </TableHeader>
                           <TableBody>
-                            {filteredBookings.map((booking) => (
-                              <React.Fragment key={booking.id}>
-                                <TableRow>
-                                  <TableCell className="font-medium">
-                                    {booking.vehicle_name}
-                                  </TableCell>
-                                  <TableCell>
-                                    {formatDate(
-                                      booking.booking_date,
-                                      "dd MMM yyyy",
+                            {filteredBookings.map((booking) => [
+                              <TableRow key={booking.id}>
+                                <TableCell className="font-medium">
+                                  {booking.vehicle_name}
+                                </TableCell>
+                                <TableCell>
+                                  {formatDate(
+                                    booking.booking_date,
+                                    "dd MMM yyyy",
+                                  )}
+                                </TableCell>
+                                <TableCell>{booking.start_time}</TableCell>
+                                <TableCell>{booking.duration} Hari</TableCell>
+                                <TableCell>
+                                  <Badge
+                                    variant={getStatusBadgeVariant(
+                                      booking.status,
                                     )}
-                                  </TableCell>
-                                  <TableCell>{booking.start_time}</TableCell>
-                                  <TableCell>{booking.duration} Hari</TableCell>
-                                  <TableCell>
-                                    <Badge
-                                      variant={getStatusBadgeVariant(
-                                        booking.status,
-                                      )}
-                                    >
-                                      {booking.status.charAt(0).toUpperCase() +
-                                        booking.status.slice(1)}
-                                    </Badge>
-                                  </TableCell>
-                                  <TableCell>
-                                    Rp {booking.total_amount.toLocaleString()}
-                                  </TableCell>
-                                  <TableCell>
-                                    <Button
-                                      variant="ghost"
-                                      size="sm"
-                                      className="w-full justify-center"
-                                      onClick={() =>
-                                        toggleBookingDetails(booking.id)
-                                      }
-                                    >
-                                      <div className="flex items-center">
-                                        <ChevronDown className="h-4 w-4 mr-1" />{" "}
-                                        Lihat Detail
-                                      </div>
-                                    </Button>
-                                  </TableCell>
-                                </TableRow>
-                                {expandedBooking === booking.id && (
-                                  <TableRow>
-                                    <TableCell
-                                      colSpan={7}
-                                      className="bg-muted/50"
-                                    >
-                                      <div className="p-4">
-                                        <h4 className="font-semibold mb-2">
-                                          Detail Pemesanan
-                                        </h4>
-                                        <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                                          <div>
-                                            <p className="text-sm text-muted-foreground">
-                                              Tipe Kendaraan
-                                            </p>
-                                            <p>{booking.vehicle_type}</p>
-                                          </div>
-                                          <div>
-                                            <p className="text-sm text-muted-foreground">
-                                              Model Kendaraan
-                                            </p>
-                                            <p> {booking.vehicle_name}</p>
-                                            <p>{booking.license_plate}</p>
-                                          </div>
-                                          <div>
-                                            <p className="text-sm text-muted-foreground">
-                                              Metode Pembayaran
-                                            </p>
-                                            <p>{booking.payment_method}</p>
-                                          </div>
-                                          <div>
-                                            <p className="text-sm text-muted-foreground">
-                                              Waktu Selesai
-                                            </p>
-                                            {(() => {
-                                              const endDate = dayjs(
-                                                `${dayjs(booking.booking_date).format("YYYY-MM-DD")}T${booking.start_time}`,
-                                              ).add(booking.duration, "day");
-
-                                              return (
-                                                <div key="end-date-display">
-                                                  <p>
-                                                    Tanggal:{" "}
-                                                    {endDate.format(
-                                                      "DD MMM YYYY",
-                                                    )}
-                                                  </p>
-                                                  <p>
-                                                    Jam:{" "}
-                                                    {endDate.format("HH:mm")}
-                                                  </p>
-                                                </div>
-                                              );
-                                            })()}
-                                          </div>
-                                          <div>
-                                            <p className="text-sm text-muted-foreground">
-                                              ID Pemesanan
-                                            </p>
-                                            <p>#{booking.id}</p>
-                                          </div>
+                                  >
+                                    {booking.status.charAt(0).toUpperCase() +
+                                      booking.status.slice(1)}
+                                  </Badge>
+                                </TableCell>
+                                <TableCell>
+                                  Rp {booking.total_amount.toLocaleString()}
+                                </TableCell>
+                                <TableCell>
+                                  Rp{" "}
+                                  {(booking.paid_amount || 0).toLocaleString()}
+                                </TableCell>
+                                <TableCell>
+                                  Rp{" "}
+                                  {getRemainingPayment(
+                                    booking,
+                                  ).toLocaleString()}
+                                </TableCell>
+                                <TableCell>
+                                  <Badge
+                                    variant={getPaymentStatusBadgeVariant(
+                                      booking,
+                                    )}
+                                  >
+                                    {getPaymentStatusDisplay(booking)}
+                                  </Badge>
+                                </TableCell>
+                                <TableCell>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="w-full justify-center"
+                                    onClick={() =>
+                                      toggleBookingDetails(booking.id)
+                                    }
+                                  >
+                                    <div className="flex items-center">
+                                      <ChevronDown className="h-4 w-4 mr-1" />{" "}
+                                      Lihat Detail
+                                    </div>
+                                  </Button>
+                                </TableCell>
+                              </TableRow>,
+                              expandedBooking === booking.id && (
+                                <TableRow key={`${booking.id}-details`}>
+                                  <TableCell
+                                    colSpan={7}
+                                    className="bg-muted/50"
+                                  >
+                                    <div className="p-4">
+                                      <h4 className="font-semibold mb-2">
+                                        Detail Pemesanan
+                                      </h4>
+                                      <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                                        <div>
+                                          <p className="text-sm text-muted-foreground">
+                                            Tipe Kendaraan
+                                          </p>
+                                          <p>{booking.vehicle_type}</p>
                                         </div>
+                                        <div>
+                                          <p className="text-sm text-muted-foreground">
+                                            Model Kendaraan
+                                          </p>
+                                          <p> {booking.vehicle_name}</p>
+                                          <p>{booking.license_plate}</p>
+                                        </div>
+                                        <div>
+                                          <p className="text-sm text-muted-foreground">
+                                            Metode Pembayaran
+                                          </p>
+                                          <p>{booking.payment_method}</p>
+                                        </div>
+                                        <div>
+                                          <p className="text-sm text-muted-foreground">
+                                            Waktu Selesai
+                                          </p>
+                                          {(() => {
+                                            const endDate = dayjs(
+                                              `${dayjs(booking.booking_date).format("YYYY-MM-DD")}T${booking.start_time}`,
+                                            ).add(booking.duration, "day");
+
+                                            return (
+                                              <div key="end-date-display">
+                                                <p>
+                                                  Tanggal:{" "}
+                                                  {endDate.format(
+                                                    "DD MMM YYYY",
+                                                  )}
+                                                </p>
+                                                <p>
+                                                  Jam: {endDate.format("HH:mm")}
+                                                </p>
+                                              </div>
+                                            );
+                                          })()}
+                                        </div>
+                                        <div>
+                                          <p className="text-sm text-muted-foreground">
+                                            ID Pemesanan
+                                          </p>
+                                          <p>#{booking.id}</p>
+                                        </div>
+                                      </div>
+                                      <div className="mt-4 flex gap-2">
                                         {(booking.status === "pending" ||
                                           booking.status === "approved") && (
-                                          <div className="mt-4">
-                                            <Button
-                                              variant="outline"
-                                              size="sm"
-                                              className="mr-2"
-                                            >
-                                              Batalkan Pemesanan
-                                            </Button>
-                                            <Button size="sm">
-                                              Hubungi Dukungan
-                                            </Button>
-                                          </div>
+                                          <Button
+                                            variant="outline"
+                                            size="sm"
+                                            onClick={() => {
+                                              // Handle cancel booking
+                                              if (
+                                                confirm(
+                                                  "Apakah Anda yakin ingin membatalkan pemesanan ini?",
+                                                )
+                                              ) {
+                                                supabase
+                                                  .from("bookings")
+                                                  .update({
+                                                    status: "cancelled",
+                                                  })
+                                                  .eq("id", booking.id)
+                                                  .then(({ error }) => {
+                                                    if (error) {
+                                                      alert(
+                                                        "Gagal membatalkan pemesanan: " +
+                                                          error.message,
+                                                      );
+                                                    } else {
+                                                      alert(
+                                                        "Pemesanan berhasil dibatalkan",
+                                                      );
+                                                      // Update the booking status in the UI
+                                                      setMockBookings(
+                                                        (prevBookings) =>
+                                                          prevBookings.map(
+                                                            (b) =>
+                                                              b.id ===
+                                                              booking.id
+                                                                ? {
+                                                                    ...b,
+                                                                    status:
+                                                                      "cancelled",
+                                                                  }
+                                                                : b,
+                                                          ),
+                                                      );
+                                                    }
+                                                  });
+                                              }
+                                            }}
+                                          >
+                                            Batalkan Pemesanan
+                                          </Button>
                                         )}
+                                        {canBookingBePaid(booking) && (
+                                          <Button
+                                            size="sm"
+                                            onClick={() =>
+                                              navigate(`/payment/${booking.id}`)
+                                            }
+                                          >
+                                            Bayar
+                                          </Button>
+                                        )}
+                                        <Button size="sm" variant="outline">
+                                          Hubungi Dukungan
+                                        </Button>
                                       </div>
-                                    </TableCell>
-                                  </TableRow>
-                                )}
-                              </React.Fragment>
-                            ))}
+                                    </div>
+                                  </TableCell>
+                                </TableRow>
+                              ),
+                            ])}
                           </TableBody>
                         </Table>
                       </div>
@@ -926,12 +1343,47 @@ const BookingHistory = ({ userId, driverSaldo }: BookingHistoryProps = {}) => {
                                 </div>
                                 <div>
                                   <p className="text-muted-foreground">
-                                    Pembayaran
+                                    Total Harga
                                   </p>
                                   <p>
                                     Rp {booking.total_amount.toLocaleString()}
                                   </p>
                                 </div>
+                                <div>
+                                  <p className="text-muted-foreground">
+                                    Pembayaran
+                                  </p>
+                                  <p>
+                                    Rp{" "}
+                                    {(
+                                      booking.paid_amount || 0
+                                    ).toLocaleString()}
+                                  </p>
+                                </div>
+                                <div>
+                                  <p className="text-muted-foreground">
+                                    Sisa Pembayaran
+                                  </p>
+                                  <p>
+                                    Rp{" "}
+                                    {getRemainingPayment(
+                                      booking,
+                                    ).toLocaleString()}
+                                  </p>
+                                </div>
+                              </div>
+                              <div className="mb-3">
+                                <p className="text-muted-foreground text-sm">
+                                  Status Pembayaran
+                                </p>
+                                <Badge
+                                  variant={getPaymentStatusBadgeVariant(
+                                    booking,
+                                  )}
+                                  className="mt-1"
+                                >
+                                  {getPaymentStatusDisplay(booking)}
+                                </Badge>
                               </div>
 
                               <Button
@@ -981,9 +1433,9 @@ const BookingHistory = ({ userId, driverSaldo }: BookingHistoryProps = {}) => {
                                       <p>#{booking.id}</p>
                                     </div>
                                   </div>
-                                  {(booking.status === "pending" ||
-                                    booking.status === "approved") && (
-                                    <div className="flex gap-2 mt-3">
+                                  <div className="flex gap-2 mt-3">
+                                    {(booking.status === "pending" ||
+                                      booking.status === "approved") && (
                                       <Button
                                         variant="outline"
                                         size="sm"
@@ -1029,11 +1481,26 @@ const BookingHistory = ({ userId, driverSaldo }: BookingHistoryProps = {}) => {
                                       >
                                         Batalkan
                                       </Button>
-                                      <Button size="sm" className="flex-1">
-                                        Hubungi Dukungan
+                                    )}
+                                    {canBookingBePaid(booking) && (
+                                      <Button
+                                        size="sm"
+                                        className="flex-1"
+                                        onClick={() =>
+                                          navigate(`/payment/${booking.id}`)
+                                        }
+                                      >
+                                        Bayar
                                       </Button>
-                                    </div>
-                                  )}
+                                    )}
+                                    <Button
+                                      size="sm"
+                                      className="flex-1"
+                                      variant="outline"
+                                    >
+                                      Hubungi Dukungan
+                                    </Button>
+                                  </div>
                                 </div>
                               )}
                             </CardContent>

@@ -19,6 +19,52 @@ import { Badge } from "@/components/ui/badge";
 // Import supabase client from lib
 import { supabase } from "@/lib/supabase";
 
+// Function to update driver saldo via external API
+const updateDriverSaldoAPI = async (
+  driverId: string,
+  saldo: number,
+): Promise<boolean> => {
+  try {
+    // First, fetch the id_driver from the drivers table
+    const { data: driverData, error: driverError } = await supabase
+      .from("drivers")
+      .select("id_driver")
+      .eq("id", driverId)
+      .single();
+
+    if (driverError || !driverData) {
+      console.error("Error fetching driver id_driver:", driverError);
+      return false;
+    }
+
+    const response = await fetch(
+      "https://appserverv2.travelincars.com/api/update-driver.php",
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          driver_id: driverData.id_driver,
+          saldo: saldo.toString(),
+        }),
+      },
+    );
+
+    if (!response.ok) {
+      console.error(`External API HTTP error! status: ${response.status}`);
+      return false;
+    }
+
+    const result = await response.json();
+    console.log("External API response:", result);
+    return true;
+  } catch (error) {
+    console.error("Error calling external API:", error);
+    return false;
+  }
+};
+
 interface Booking {
   id: string;
   vehicle_id: string;
@@ -28,7 +74,6 @@ interface Booking {
   duration: number;
   status: string;
   payment_status: string;
-  total_amount: number;
   paid_amount?: number;
 }
 
@@ -54,6 +99,8 @@ const PaymentForm = () => {
   const [isPaymentSuccess, setIsPaymentSuccess] = useState(false);
   const [paymentAmount, setPaymentAmount] = useState<number | "">("");
   const [isPartialPayment, setIsPartialPayment] = useState(false);
+  const [isProcessingPayment, setIsProcessingPayment] = useState(false);
+  const [isBookingFullyPaid, setIsBookingFullyPaid] = useState(false);
 
   useEffect(() => {
     const fetchBookingData = async () => {
@@ -74,6 +121,12 @@ const PaymentForm = () => {
         if (!bookingData) throw new Error("Booking not found");
 
         setBooking(bookingData);
+
+        // Check if booking is fully paid
+        const totalPaid = bookingData.paid_amount || 0;
+        const totalAmount = bookingData.total_amount || 0;
+        const isFullyPaid = totalPaid >= totalAmount;
+        setIsBookingFullyPaid(isFullyPaid);
 
         // Fetch vehicle data
         const { data: vehicleData, error: vehicleError } = await supabase
@@ -98,10 +151,79 @@ const PaymentForm = () => {
   }, [bookingId]);
 
   const handlePaymentSubmit = async () => {
-    if (!booking || !vehicle) return;
+    if (!booking || !vehicle || isProcessingPayment) return;
 
     try {
-      // Try to get current user, but don't require it for now
+      setIsProcessingPayment(true);
+      setError(null);
+
+      // First, check if booking is already fully paid
+      const currentPaidAmount = booking.paid_amount || 0;
+      const totalBookingAmount = booking.total_amount || 0;
+
+      if (currentPaidAmount >= totalBookingAmount) {
+        console.log(
+          "Booking is already fully paid, preventing duplicate payment",
+        );
+        setIsBookingFullyPaid(true);
+        setIsPaymentSuccess(true);
+        return;
+      }
+
+      // Calculate payment amount
+      const remainingAmount = totalBookingAmount - currentPaidAmount;
+      const paymentAmountToProcess =
+        isPartialPayment && paymentAmount !== ""
+          ? Number(paymentAmount)
+          : remainingAmount;
+
+      // Validate payment amount
+      if (paymentAmountToProcess <= 0) {
+        setError("Invalid payment amount");
+        return;
+      }
+
+      if (currentPaidAmount + paymentAmountToProcess > totalBookingAmount) {
+        setError("Payment amount exceeds remaining balance");
+        return;
+      }
+
+      // Check for existing payments to prevent duplicates
+      const { data: existingPayments, error: checkError } = await supabase
+        .from("payments")
+        .select("id, paid_amount, status, created_at")
+        .select("id, status, created_at")
+        .eq("booking_id", booking.id)
+        .eq("status", "paid")
+        .order("created_at", { ascending: false });
+
+      if (checkError) {
+        console.error("Error checking existing payments:", checkError);
+      }
+
+      // Check if there's already a payment with the same amount recently (within last 5 minutes)
+      if (existingPayments && existingPayments.length > 0) {
+        const recentPayment = existingPayments.find((payment) => {
+          const paymentTime = new Date(payment.created_at).getTime();
+          const now = new Date().getTime();
+          const timeDiff = now - paymentTime;
+          return (
+            payment.total_amount === paymentAmountToProcess &&
+            timeDiff < 5 * 60 * 1000
+          ); // 5 minutes
+        });
+
+        if (recentPayment) {
+          console.log(
+            "Recent payment found, preventing duplicate:",
+            recentPayment,
+          );
+          setIsPaymentSuccess(true);
+          return;
+        }
+      }
+
+      // Try to get current user
       let userId = null;
       try {
         const {
@@ -112,53 +234,231 @@ const PaymentForm = () => {
         console.log("No authenticated user, continuing as guest");
       }
 
-      // Calculate payment amount
-      const paymentAmountToProcess =
-        isPartialPayment && paymentAmount !== ""
-          ? Number(paymentAmount)
-          : booking.total_amount - (booking.paid_amount || 0);
+      // Create payment data
+      const paymentData = {
+        booking_id: booking.id,
+        total_amount: paymentAmountToProcess,
+        payment_method:
+          paymentMethod === "transfer"
+            ? `transfer_${selectedBank}`
+            : paymentMethod,
+        status: "paid",
+        notes: `Payment for ${vehicle.name} via ${paymentMethod}${paymentMethod === "transfer" ? ` (${selectedBank})` : ""}`,
+        is_partial_payment: isPartialPayment,
+        payment_date: new Date().toISOString().split("T")[0],
+        user_id: userId,
+      };
 
-      // Create a payment record
-      const { data, error } = await supabase
+      console.log("Inserting payment data:", paymentData);
+
+      const { data: insertedPayment, error: paymentError } = await supabase
         .from("payments")
-        .insert([
-          {
-            booking_id: booking.id,
-            amount: paymentAmountToProcess,
-            payment_method: paymentMethod,
-            bank: paymentMethod === "transfer" ? selectedBank : null,
-            status: "pending",
-            user_id: userId,
-          },
-        ])
-        .select();
+        .insert(paymentData)
+        .select()
+        .single();
 
-      if (error) throw error;
+      if (paymentError) {
+        console.error("Payment creation error:", paymentError);
+        console.error("Payment data that failed:", paymentData);
 
-      // Calculate new paid amount
-      const newPaidAmount = (booking.paid_amount || 0) + paymentAmountToProcess;
-      const newPaymentStatus =
-        newPaidAmount >= booking.total_amount ? "paid" : "pending";
+        // Handle specific duplicate key error for ledger summary
+        if (
+          paymentError.code === "23505" &&
+          paymentError.message.includes("unique_ledger_summary")
+        ) {
+          // Check if payment was actually created despite the error
+          const { data: checkPayments } = await supabase
+            .from("payments")
+            .select("*")
+            .eq("booking_id", booking.id)
+            .eq("total_amount", paymentAmountToProcess)
+            .eq("paid_amount", paymentAmountToProcess)
+            .eq("payment_method", paymentData.payment_method)
+            .eq("status", "paid")
+            .order("created_at", { ascending: false })
+            .limit(1);
 
-      // Calculate remaining payments
-      const remainingPayments = booking.total_amount - newPaidAmount;
+          if (checkPayments && checkPayments.length > 0) {
+            console.log(
+              "Payment was created despite ledger summary error:",
+              checkPayments[0],
+            );
+            setIsPaymentSuccess(true);
+            return;
+          }
+        }
 
-      // Update booking payment status, paid amount, and remaining payments
+        setError(`Failed to create payment: ${paymentError.message}`);
+        return;
+      }
+
+      console.log("Payment created successfully:", insertedPayment);
+
+      // Update the booking state to reflect the new payment
+      const updatedPaidAmount =
+        (booking.paid_amount || 0) + paymentAmountToProcess;
+      const isNowFullyPaid = updatedPaidAmount >= totalBookingAmount;
+
+      // Update booking in database to reflect new payment status
+      const updateData: any = {
+        paid_amount: updatedPaidAmount,
+        payment_status: isNowFullyPaid ? "paid" : "partial",
+      };
+
+      // If booking is now fully paid, set status to 'paid' and remaining payments to 0
+      if (isNowFullyPaid) {
+        updateData.bookings_status = "paid";
+        updateData.remaining_payments = 0;
+      }
+
       const { error: updateError } = await supabase
         .from("bookings")
-        .update({
-          payment_status: newPaymentStatus,
-          paid_amount: newPaidAmount,
-          remaining_payments: remainingPayments,
-        })
+        .update(updateData)
         .eq("id", booking.id);
 
-      if (updateError) throw updateError;
+      if (updateError) {
+        console.error("Error updating booking:", updateError);
+        // Continue anyway as payment was successful
+      }
+
+      setBooking({
+        ...booking,
+        paid_amount: updatedPaidAmount,
+        payment_status: isNowFullyPaid ? "paid" : "partial",
+        status: isNowFullyPaid ? "paid" : booking.status,
+        remaining_payments: isNowFullyPaid
+          ? 0
+          : booking.remaining_payments ||
+            totalBookingAmount - updatedPaidAmount,
+      });
+
+      // Update the fully paid status
+      setIsBookingFullyPaid(isNowFullyPaid);
+
+      // Call RPC function to handle payment completion and update driver status to 'standby'
+      if (booking.driver_id) {
+        try {
+          // Get current user ID for the RPC function
+          const {
+            data: { user },
+          } = await supabase.auth.getUser();
+          const currentUserId = user?.id;
+
+          if (currentUserId) {
+            console.log(
+              "Calling pay_booking_and_set_driver_standby RPC function",
+            );
+
+            const { data: rpcResult, error: rpcError } = await supabase.rpc(
+              "pay_booking_and_set_driver_standby",
+              {
+                booking_id: booking.id,
+                payment_amount: paymentAmountToProcess,
+                method:
+                  paymentMethod === "transfer"
+                    ? `transfer_${selectedBank}`
+                    : paymentMethod,
+                by: currentUserId,
+              },
+            );
+
+            if (rpcError) {
+              console.error(
+                "Error calling pay_booking_and_set_driver_standby:",
+                rpcError,
+              );
+              // Continue with manual update as fallback
+              const { data: driverData, error: driverError } = await supabase
+                .from("drivers")
+                .select("saldo")
+                .eq("id", booking.driver_id)
+                .single();
+
+              if (!driverError && driverData) {
+                const currentSaldo = driverData.saldo || 0;
+                const newSaldo = currentSaldo + paymentAmountToProcess;
+
+                const { error: updateDriverError } = await supabase
+                  .from("drivers")
+                  .update({
+                    saldo: newSaldo,
+                    driver_status: "standby",
+                  })
+                  .eq("id", booking.driver_id);
+
+                if (updateDriverError) {
+                  console.error(
+                    "Error updating driver manually:",
+                    updateDriverError,
+                  );
+                } else {
+                  console.log(
+                    "Driver updated manually - saldo:",
+                    newSaldo,
+                    "status: standby",
+                  );
+
+                  // Call external API to update driver saldo
+                  const apiSuccess = await updateDriverSaldoAPI(
+                    booking.driver_id,
+                    newSaldo,
+                  );
+                  if (!apiSuccess) {
+                    console.warn(
+                      "External API call failed, but payment process continues",
+                    );
+                  }
+                }
+              }
+            } else {
+              console.log("RPC function executed successfully:", rpcResult);
+              console.log(
+                "Driver status updated to 'standby' and saldo updated",
+              );
+
+              // Get updated saldo and call external API
+              try {
+                const { data: updatedDriverData, error: fetchError } =
+                  await supabase
+                    .from("drivers")
+                    .select("saldo")
+                    .eq("id", booking.driver_id)
+                    .single();
+
+                if (!fetchError && updatedDriverData) {
+                  const apiSuccess = await updateDriverSaldoAPI(
+                    booking.driver_id,
+                    updatedDriverData.saldo || 0,
+                  );
+                  if (!apiSuccess) {
+                    console.warn(
+                      "External API call failed, but payment process continues",
+                    );
+                  }
+                }
+              } catch (error) {
+                console.error("Error fetching updated driver data:", error);
+              }
+            }
+          } else {
+            console.error("No current user ID available for RPC function");
+          }
+        } catch (error) {
+          console.error("Error in payment completion process:", error);
+          // Don't fail the payment if driver update fails, just log the error
+        }
+      }
 
       setIsPaymentSuccess(true);
     } catch (error) {
       console.error("Error processing payment:", error);
-      setError("Failed to process payment. Please try again.");
+      if (error.message) {
+        setError(`Payment processing failed: ${error.message}`);
+      } else {
+        setError("Failed to process payment. Please try again.");
+      }
+    } finally {
+      setIsProcessingPayment(false);
     }
   };
 
@@ -224,17 +524,22 @@ const PaymentForm = () => {
         </p>
       </div>
 
-      {isPaymentSuccess ? (
+      {isPaymentSuccess || isBookingFullyPaid ? (
         <Card>
           <CardContent className="pt-6">
             <div className="py-12 flex flex-col items-center text-center">
               <div className="rounded-full bg-green-100 p-3 mb-4">
                 <CheckCircle className="h-10 w-10 text-green-600" />
               </div>
-              <h2 className="text-2xl font-bold mb-2">Payment Successful!</h2>
+              <h2 className="text-2xl font-bold mb-2">
+                {isPaymentSuccess
+                  ? "Payment Successful!"
+                  : "Booking Fully Paid"}
+              </h2>
               <p className="text-muted-foreground mb-6">
-                Your payment has been processed and is pending confirmation. You
-                can check the status in your payment history.
+                {isPaymentSuccess
+                  ? "Your payment has been processed and is pending confirmation. You can check the status in your payment history."
+                  : "This booking has been fully paid. No further payments are required."}
               </p>
               <div className="flex gap-4">
                 <Button onClick={() => navigate("/booking-history")}>
@@ -351,7 +656,8 @@ const PaymentForm = () => {
                     <span>
                       Rp{" "}
                       {new Intl.NumberFormat("id-ID").format(
-                        booking.total_amount - booking.paid_amount,
+                        (booking.total_amount || 0) -
+                          (booking.paid_amount || 0),
                       )}
                     </span>
                   </div>
@@ -375,7 +681,8 @@ const PaymentForm = () => {
                     setIsPartialPayment(e.target.checked);
                     if (!e.target.checked) {
                       setPaymentAmount(
-                        booking.total_amount - (booking.paid_amount || 0),
+                        (booking.total_amount || 0) -
+                          (booking.paid_amount || 0),
                       );
                     } else {
                       setPaymentAmount("");
@@ -401,7 +708,9 @@ const PaymentForm = () => {
                     placeholder="Enter amount"
                     className="mt-1"
                     min={1}
-                    max={booking.total_amount - (booking.paid_amount || 0)}
+                    max={
+                      (booking.total_amount || 0) - (booking.paid_amount || 0)
+                    }
                   />
                 </div>
               )}
@@ -413,15 +722,31 @@ const PaymentForm = () => {
                   {new Intl.NumberFormat("id-ID").format(
                     isPartialPayment && paymentAmount !== ""
                       ? paymentAmount
-                      : booking.total_amount - (booking.paid_amount || 0),
+                      : (booking.total_amount || 0) -
+                          (booking.paid_amount || 0),
                   )}
                 </span>
               </div>
             </div>
           </CardContent>
           <CardFooter>
-            <Button onClick={handlePaymentSubmit} className="w-full">
-              Complete Payment
+            <Button
+              onClick={handlePaymentSubmit}
+              className="w-full"
+              disabled={
+                isProcessingPayment ||
+                isBookingFullyPaid ||
+                (booking.paid_amount || 0) >= (booking.total_amount || 0) ||
+                (isPartialPayment &&
+                  (paymentAmount === "" || Number(paymentAmount) <= 0))
+              }
+            >
+              {isProcessingPayment
+                ? "Processing Payment..."
+                : isBookingFullyPaid ||
+                    (booking.paid_amount || 0) >= (booking.total_amount || 0)
+                  ? "Booking Fully Paid"
+                  : "Complete Payment"}
             </Button>
           </CardFooter>
         </Card>
