@@ -321,19 +321,36 @@ const PaymentTracking = ({
             "PaymentTracking - Successfully fetched bookings:",
             bookingsData.length,
           );
-          const transformedBookings: Booking[] = bookingsData.map(
-            (booking) => ({
+          const transformedBookings: Booking[] = bookingsData.map((booking) => {
+            // Construct proper vehicle name from available fields
+            let vehicleName = "Unknown Vehicle";
+            if (booking.vehicle_name) {
+              vehicleName = booking.vehicle_name;
+            } else if (booking.make && booking.model) {
+              vehicleName = `${booking.make} ${booking.model}`;
+            } else if (booking.make) {
+              vehicleName = booking.make;
+            } else if (booking.model) {
+              vehicleName = booking.model;
+            }
+
+            // Construct proper license plate from available fields
+            let licensePlate = "Unknown Plate";
+            if (booking.license_plate) {
+              licensePlate = booking.license_plate;
+            } else if (booking.plate_number) {
+              licensePlate = booking.plate_number;
+            }
+
+            return {
               id: booking.id,
               vehicle_id: booking.vehicle_id || "",
-              vehicle_name: booking.vehicle_name || "Unknown Vehicle",
+              vehicle_name: vehicleName,
               vehicle_model:
                 booking.make && booking.model
                   ? `${booking.make} ${booking.model}`
                   : undefined,
-              license_plate:
-                booking.license_plate ||
-                booking.plate_number ||
-                "Unknown Plate",
+              license_plate: licensePlate,
               user_id: booking.user_id || booking.customer_id || "",
               booking_date: new Date(booking.booking_date || new Date()),
               start_time: booking.start_time || "00:00",
@@ -346,8 +363,8 @@ const PaymentTracking = ({
               transaction_id: booking.transaction_id || "",
               created_at: new Date(booking.created_at || new Date()),
               remaining_payments: booking.remaining_payments || 0,
-            }),
-          );
+            };
+          });
 
           setBookings(transformedBookings);
           processBookingsIntoPayments(transformedBookings);
@@ -384,7 +401,7 @@ const PaymentTracking = ({
       const paymentObj: Payment = {
         id: booking.id,
         booking_id: booking.id,
-        vehicle_name: booking.vehicle_name || "Unknown Vehicle",
+        vehicle_name: booking.vehicle_name,
         vehicle_model: booking.vehicle_model,
         license_plate: booking.license_plate,
         total_amount: booking.total_amount,
@@ -408,7 +425,7 @@ const PaymentTracking = ({
         const remainingPaymentObj: RemainingPayment = {
           id: `${booking.id}-remaining`,
           booking_id: booking.id,
-          vehicle_name: booking.vehicle_name || "Unknown Vehicle",
+          vehicle_name: booking.vehicle_name,
           vehicle_model: booking.vehicle_model,
           license_plate: booking.license_plate,
           total_amount: booking.remaining_payments,
@@ -427,7 +444,7 @@ const PaymentTracking = ({
           const remainingPaymentObj: RemainingPayment = {
             id: `${booking.id}-remaining`,
             booking_id: booking.id,
-            vehicle_name: booking.vehicle_name || "Unknown Vehicle",
+            vehicle_name: booking.vehicle_name,
             vehicle_model: booking.vehicle_model,
             license_plate: booking.license_plate,
             total_amount: remainingAmount,

@@ -18,6 +18,7 @@ import {
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Switch } from "@/components/ui/switch";
 import {
   LogOut,
   Car,
@@ -29,6 +30,8 @@ import {
   CalendarIcon,
   Plane,
   RefreshCw,
+  Wifi,
+  WifiOff,
 } from "lucide-react";
 import AuthForms from "./auth/AuthForms";
 import VehicleBooking from "./booking/VehicleBooking";
@@ -57,6 +60,7 @@ const Home = () => {
   const [hasUnpaidBookings, setHasUnpaidBookings] = useState(false);
   const [currentVehicle, setCurrentVehicle] = useState(null);
   const [driverSaldo, setDriverSaldo] = useState(0);
+  const [isOnline, setIsOnline] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -103,6 +107,7 @@ const Home = () => {
             const saldoValue = Number(driverData.saldo) || 0;
             setUser(driverData);
             setDriverSaldo(saldoValue);
+            setIsOnline(driverData.is_online || false);
             console.log(
               "✅ Home - Using driver data, saldo:",
               saldoValue,
@@ -146,6 +151,7 @@ const Home = () => {
               const saldoValue = Number(userData.saldo) || 0;
               setUser(userData);
               setDriverSaldo(saldoValue);
+              setIsOnline(false); // Default to offline for users table
               console.log(
                 "✅ Home - Using user data, saldo:",
                 saldoValue,
@@ -233,7 +239,7 @@ const Home = () => {
       const { data: bookingsData, error: bookingsError } = await supabase
         .from("bookings")
         .select(
-          "*, remaining_payments, booking_date, end_date, start_date, bookings_status, total_amount, paid_amount",
+          "*, remaining_payments, booking_date, end_date, start_date, total_amount, paid_amount",
         )
         .eq("user_id", userId);
 
@@ -524,6 +530,30 @@ const Home = () => {
     }
   };
 
+  const handleOnlineStatusChange = async (checked: boolean) => {
+    try {
+      setIsOnline(checked);
+
+      // Update the is_online status in the drivers table
+      const { error } = await supabase
+        .from("drivers")
+        .update({ is_online: checked })
+        .eq("id", user?.id);
+
+      if (error) {
+        console.error("Error updating online status:", error);
+        // Revert the state if update failed
+        setIsOnline(!checked);
+      } else {
+        console.log("Online status updated successfully:", checked);
+      }
+    } catch (error) {
+      console.error("Error updating online status:", error);
+      // Revert the state if update failed
+      setIsOnline(!checked);
+    }
+  };
+
   const tabs = [
     { value: "booking", label: "Book Vehicle" },
     { value: "history", label: "Booking History" },
@@ -581,10 +611,28 @@ const Home = () => {
                 />
                 <AvatarFallback>{user.name?.charAt(0)}</AvatarFallback>
               </Avatar>
-              <div>
+              <div className="flex-1">
                 <p className="font-medium">{user.name}</p>
                 <p className="text-xs text-muted-foreground">{user.email}</p>
               </div>
+            </div>
+
+            {/* Online/Offline Toggle */}
+            <div className="mt-4 flex items-center justify-between rounded-lg bg-card border p-3">
+              <div className="flex items-center space-x-2">
+                {isOnline ? (
+                  <Wifi className="h-4 w-4 text-green-500" />
+                ) : (
+                  <WifiOff className="h-4 w-4 text-gray-500" />
+                )}
+                <span className="text-sm font-medium">
+                  {isOnline ? "Online" : "Offline"}
+                </span>
+              </div>
+              <Switch
+                checked={isOnline}
+                onCheckedChange={handleOnlineStatusChange}
+              />
             </div>
           </div>
 
@@ -976,6 +1024,24 @@ const Home = () => {
                       </p>
                     </div>
                   </div>
+                </div>
+
+                {/* Mobile Online/Offline Toggle */}
+                <div className="mb-4 flex items-center justify-between rounded-lg bg-card border p-3">
+                  <div className="flex items-center space-x-2">
+                    {isOnline ? (
+                      <Wifi className="h-4 w-4 text-green-500" />
+                    ) : (
+                      <WifiOff className="h-4 w-4 text-gray-500" />
+                    )}
+                    <span className="text-sm font-medium">
+                      {isOnline ? "Online" : "Offline"}
+                    </span>
+                  </div>
+                  <Switch
+                    checked={isOnline}
+                    onCheckedChange={handleOnlineStatusChange}
+                  />
                 </div>
 
                 <nav className="space-y-2">

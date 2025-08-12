@@ -378,7 +378,7 @@ const VehicleBooking = ({
         user_id: user.id,
         // ===== DRIVERS_ID TEMPORARILY DISABLED =====
         // driver_id: driverId, // COMMENTED OUT - temporarily disabled
-        driver_name: driverName,
+        // driver_name: driverName,
         name: driverName,
       };
       console.log("returnDate:", returnDate);

@@ -305,9 +305,15 @@ const PaymentForm = () => {
         payment_status: isNowFullyPaid ? "paid" : "partial",
       };
 
-      // If booking is now fully paid, set status to 'paid' and remaining payments to 0
+      // Update booking status based on payment method
+      if (paymentMethod === "cash") {
+        updateData.status = "completed";
+      } else if (paymentMethod === "transfer") {
+        updateData.status = "pending";
+      }
+
+      // If booking is now fully paid, set remaining payments to 0
       if (isNowFullyPaid) {
-        updateData.bookings_status = "paid";
         updateData.remaining_payments = 0;
       }
 
@@ -334,6 +340,30 @@ const PaymentForm = () => {
 
       // Update the fully paid status
       setIsBookingFullyPaid(isNowFullyPaid);
+
+      // Update driver status to 'standby' after successful payment
+      if (booking.driver_id) {
+        try {
+          console.log(
+            "Updating driver status to 'standby' for driver:",
+            booking.driver_id,
+          );
+
+          const { error: driverUpdateError } = await supabase
+            .from("drivers")
+            .update({ driver_status: "standby" })
+            .eq("id", booking.driver_id);
+
+          if (driverUpdateError) {
+            console.error("Error updating driver status:", driverUpdateError);
+          } else {
+            console.log("Driver status successfully updated to 'standby'");
+          }
+        } catch (error) {
+          console.error("Error in driver status update:", error);
+          // Don't fail the payment if driver update fails, just log the error
+        }
+      }
 
       // Call RPC function to handle payment completion and update driver status to 'standby'
       if (booking.driver_id) {
