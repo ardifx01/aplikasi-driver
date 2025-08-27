@@ -55,7 +55,7 @@ BEGIN
   SELECT COALESCE(SUM(amount), 0)
   INTO v_total_payments
   FROM payments 
-  WHERE booking_id = booking_id 
+  WHERE booking_id = $1 
     AND payment_status = 'COMPLETED';
   
   -- Update driver status to 'standby' in the drivers table
@@ -125,7 +125,25 @@ GRANT EXECUTE ON FUNCTION pay_booking_and_set_driver_standby(uuid, numeric, text
 COMMENT ON FUNCTION pay_booking_and_set_driver_standby(uuid, numeric, text, uuid) IS 'Handles payment completion, calculates total payments for a booking, and updates driver status to standby';
 
 -- Enable realtime for payments table (if not already enabled)
-alter publication supabase_realtime add table payments;
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_publication_tables 
+        WHERE pubname = 'supabase_realtime' 
+        AND tablename = 'payments'
+    ) THEN
+        ALTER PUBLICATION supabase_realtime ADD TABLE payments;
+    END IF;
+END $$;
 
 -- Enable realtime for drivers table (if not already enabled)
-alter publication supabase_realtime add table drivers;
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_publication_tables 
+        WHERE pubname = 'supabase_realtime' 
+        AND tablename = 'drivers'
+    ) THEN
+        ALTER PUBLICATION supabase_realtime ADD TABLE drivers;
+    END IF;
+END $$;

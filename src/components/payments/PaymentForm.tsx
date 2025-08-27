@@ -191,8 +191,7 @@ const PaymentForm = () => {
       // Check for existing payments to prevent duplicates
       const { data: existingPayments, error: checkError } = await supabase
         .from("payments")
-        .select("id, paid_amount, status, created_at")
-        .select("id, status, created_at")
+        .select("id, total_amount, status, created_at")
         .eq("booking_id", booking.id)
         .eq("status", "paid")
         .order("created_at", { ascending: false });

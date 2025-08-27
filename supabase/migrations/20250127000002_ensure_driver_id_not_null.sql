@@ -61,7 +61,15 @@ RETURNS TRIGGER AS $$
 DECLARE
   found_driver_id UUID;
   found_driver_name TEXT;
+  debug_table_exists BOOLEAN;
 BEGIN
+  -- Check if debug_log table exists before trying to insert
+  SELECT EXISTS (
+    SELECT FROM information_schema.tables 
+    WHERE table_schema = 'public' 
+    AND table_name = 'debug_log'
+  ) INTO debug_table_exists;
+  
   -- If driver_id is already set, validate it exists in drivers table and get driver name
   IF NEW.driver_id IS NOT NULL THEN
     -- Check if the driver_id exists in drivers table and get the name
@@ -98,12 +106,14 @@ BEGIN
     END IF;
     
     -- CRITICAL CHANGE: If no driver found, REJECT the booking instead of creating fallback records
-    -- Log this rejection for debugging
-    INSERT INTO debug_log (message, data) 
-    VALUES (
-      'Booking rejected: No matching driver found in drivers table', 
-      json_build_object('booking_id', NEW.id, 'user_id', NEW.user_id, 'timestamp', NOW())
-    );
+    -- Log this rejection for debugging (only if debug_log table exists)
+    IF debug_table_exists THEN
+      INSERT INTO debug_log (message, data) 
+      VALUES (
+        'Booking rejected: No matching driver found in drivers table', 
+        json_build_object('booking_id', NEW.id, 'user_id', NEW.user_id, 'timestamp', NOW())
+      );
+    END IF;
     
     -- Raise an exception to prevent the booking from being created
     RAISE EXCEPTION 'No matching driver found in drivers table for user_id %. User must be registered as a driver before creating bookings.', NEW.user_id;

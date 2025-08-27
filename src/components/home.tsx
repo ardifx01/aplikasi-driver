@@ -61,6 +61,8 @@ const Home = () => {
   const [currentVehicle, setCurrentVehicle] = useState(null);
   const [driverSaldo, setDriverSaldo] = useState(0);
   const [isOnline, setIsOnline] = useState(false);
+  const [locationInterval, setLocationInterval] =
+    useState<NodeJS.Timeout | null>(null);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -201,6 +203,11 @@ const Home = () => {
     return () => {
       window.removeEventListener("resize", handleResize);
       window.removeEventListener("modelSelected", handleModelSelected);
+
+      // Clean up location tracking on component unmount
+      if (locationInterval) {
+        clearInterval(locationInterval);
+      }
     };
   }, []);
 
@@ -530,6 +537,77 @@ const Home = () => {
     }
   };
 
+  const sendLocationUpdate = async (status: "online" | "offline") => {
+    if (!user?.id) return;
+
+    try {
+      // Get current location
+      const position = await new Promise<GeolocationPosition>(
+        (resolve, reject) => {
+          if (!navigator.geolocation) {
+            reject(new Error("Geolocation is not supported"));
+            return;
+          }
+
+          navigator.geolocation.getCurrentPosition(resolve, reject, {
+            enableHighAccuracy: true,
+            timeout: 10000,
+            maximumAge: 60000,
+          });
+        },
+      );
+
+      const { latitude, longitude } = position.coords;
+
+      // Send location to API
+      const response = await supabase.functions.invoke(
+        "supabase-functions-update-driver-location",
+        {
+          body: {
+            user_id: user.id,
+            user_email: user.email,
+            full_name: user.full_name || null,
+            latitude,
+            longitude,
+            status,
+          },
+        },
+      );
+
+      if (response.error) {
+        console.error("Error updating location:", response.error);
+      } else {
+        console.log("Location updated successfully:", response.data);
+      }
+    } catch (error) {
+      console.error("Error getting location or updating:", error);
+      // Don't show error to user for location updates, just log it
+    }
+  };
+
+  const startLocationTracking = () => {
+    // Send initial location update
+    sendLocationUpdate("online");
+
+    // Set up interval to send location every 10 seconds
+    const interval = setInterval(() => {
+      sendLocationUpdate("online");
+    }, 10000);
+
+    setLocationInterval(interval);
+  };
+
+  const stopLocationTracking = () => {
+    // Clear the interval
+    if (locationInterval) {
+      clearInterval(locationInterval);
+      setLocationInterval(null);
+    }
+
+    // Send final offline status
+    sendLocationUpdate("offline");
+  };
+
   const handleOnlineStatusChange = async (checked: boolean) => {
     try {
       setIsOnline(checked);
@@ -544,8 +622,16 @@ const Home = () => {
         console.error("Error updating online status:", error);
         // Revert the state if update failed
         setIsOnline(!checked);
+        return;
+      }
+
+      console.log("Online status updated successfully:", checked);
+
+      // Handle location tracking based on online status
+      if (checked) {
+        startLocationTracking();
       } else {
-        console.log("Online status updated successfully:", checked);
+        stopLocationTracking();
       }
     } catch (error) {
       console.error("Error updating online status:", error);

@@ -373,7 +373,7 @@ const ProfilePage = ({ userId }: ProfilePageProps = {}) => {
                   Driver Role
                 </h3>
                 <p className="text-lg">
-                  {user?.description || "Driver Perusahaan"}
+                  {driver?.role_name || "Driver Perusahaan"}
                 </p>
               </div>
               <div>

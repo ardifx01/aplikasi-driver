@@ -376,10 +376,10 @@ const VehicleBooking = ({
         start_date: formatDateLocal(pickupDate),
         end_date: formatDateLocal(returnDate),
         user_id: user.id,
-        // ===== DRIVERS_ID TEMPORARILY DISABLED =====
-        // driver_id: driverId, // COMMENTED OUT - temporarily disabled
-        // driver_name: driverName,
-        name: driverName,
+        // ===== DRIVERS_ID RE-ENABLED =====
+        driver_id: driverId, // Re-enabled to ensure driver_id is populated
+        //  driver_name: driverName,
+        //   name: driverName,
       };
       console.log("returnDate:", returnDate);
       console.log("Booking data to be inserted:", bookingData);
@@ -410,7 +410,7 @@ const VehicleBooking = ({
         "end_date",
         "user_id",
         "driver_id",
-        "name",
+        // "name",
       ];
 
       const invalidColumns = Object.keys(bookingData).filter(
