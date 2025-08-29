@@ -95,7 +95,13 @@ const Home = () => {
     const checkUser = async () => {
       try {
         const { data, error } = await supabase.auth.getSession();
-        if (error) throw error;
+        if (error) {
+          console.error("Error checking authentication:", error);
+          // Reset states on error
+          setIsTopupProcessing(false);
+          setCurrentTopupId(null);
+          return;
+        }
 
         if (data?.session?.user) {
           const sessionUserId = data.session.user.id;
@@ -103,6 +109,10 @@ const Home = () => {
 
           console.log("🔍 Home - Session user ID:", sessionUserId);
           console.log("🔍 Home - Session user email:", sessionUserEmail);
+
+          // Reset top-up processing state when user changes
+          setIsTopupProcessing(false);
+          setCurrentTopupId(null);
 
           // Try to get driver data first by ID
           let { data: driverData, error: driverError } = await supabase
@@ -198,8 +208,6 @@ const Home = () => {
             }
           }
         }
-      } catch (error) {
-        console.error("Error checking authentication:", error);
       } finally {
         setLoading(false);
       }
@@ -434,15 +442,32 @@ const Home = () => {
   const monitorTopupStatus = async (topupId) => {
     const checkStatus = async () => {
       try {
+        // Get current user to ensure we're still monitoring the right user's request
+        const { data: sessionData } = await supabase.auth.getSession();
+        if (!sessionData?.session?.user?.id) {
+          // User logged out, stop monitoring
+          setIsTopupProcessing(false);
+          setCurrentTopupId(null);
+          return true;
+        }
+
         const { data, error } = await supabase
           .from("topup_requests")
-          .select("status")
+          .select("status, user_id")
           .eq("id", topupId)
           .single();
 
         if (error) {
           console.error("Error checking topup status:", error);
           return;
+        }
+
+        // Check if the topup request belongs to the current user
+        if (data && data.user_id !== sessionData.session.user.id) {
+          // Different user, stop monitoring
+          setIsTopupProcessing(false);
+          setCurrentTopupId(null);
+          return true;
         }
 
         if (
@@ -824,7 +849,19 @@ const Home = () => {
     try {
       const { error } = await supabase.auth.signOut();
       if (error) throw error;
+
+      // Reset all states when signing out
       setUser(null);
+      setIsTopupProcessing(false);
+      setCurrentTopupId(null);
+      setDriverSaldo(0);
+      setTotalPaid(0);
+      setTotalPending(0);
+      setOverduePayments(0);
+      setOverdueAmount(0);
+      setOverdueDays(0);
+      setHasUnpaidBookings(false);
+
       navigate("/");
     } catch (error) {
       console.error("Error signing out:", error);
