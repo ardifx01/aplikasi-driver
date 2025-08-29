@@ -335,25 +335,37 @@ const Home = () => {
         receivingBankName = "BCA";
       }
 
-      // Get user role from the current user data
-      let userRole = "driver"; // Default fallback
-      if (user?.role) {
-        userRole = user.role;
+      // Determine user role for request_by_role field
+      let userRole = "user"; // Default fallback
+
+      // Try to get role from drivers table first
+      const { data: driverRole, error: driverRoleError } = await supabase
+        .from("drivers")
+        .select("role_name")
+        .eq("id", sessionData.session.user.id)
+        .maybeSingle();
+
+      if (driverRole && driverRole.role_name) {
+        userRole = driverRole.role_name;
       } else {
-        // Selalu ambil role dari tabel users
-        const { data: userData, error: userError } = await supabase
+        // Fallback to users table
+        const { data: userRoleData, error: userRoleError } = await supabase
           .from("users")
           .select("role")
           .eq("id", sessionData.session.user.id)
-          .single();
+          .maybeSingle();
 
-        if (userError || !userData?.role) {
-          console.error("Gagal mengambil role user:", userError);
-          throw new Error("Role user tidak ditemukan");
+        if (userRoleData && userRoleData.role) {
+          userRole = userRoleData.role;
         }
-
-        userRole = userData.role; // ✅ cukup assign, tidak pakai const lagi
       }
+
+      console.log(
+        "🚀 Inserting topup request for user:",
+        sessionData.session.user.id,
+        "with role:",
+        userRole,
+      );
 
       // Insert topup request into database
       const { data, error } = await supabase
@@ -368,9 +380,9 @@ const Home = () => {
           destination_account: topupForm.destination_account,
           proof_url: proofUrl,
           reference_no: referenceNo,
-          request_by_role: userRole, // ✅ role dari tabel users
           method: "bank_transfer",
           status: "pending",
+          request_by_role: userRole,
         })
         .select()
         .single();
