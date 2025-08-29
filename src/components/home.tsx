@@ -307,7 +307,7 @@ const Home = () => {
       const referenceNo = `TD-${dateStr}-${timeStr}-${randomNum}`;
 
       // Upload proof file if provided
-      let proofUrl = null;
+      let proofUrl: string | null = null;
       if (topupForm.proof_url) {
         const fileExt = topupForm.proof_url.name.split(".").pop();
         const fileName = `${Date.now()}.${fileExt}`;
@@ -340,6 +340,7 @@ const Home = () => {
       if (user?.role) {
         userRole = user.role;
       } else {
+        // Selalu ambil role dari tabel users
         const { data: userData, error: userError } = await supabase
           .from("users")
           .select("role")
@@ -351,7 +352,7 @@ const Home = () => {
           throw new Error("Role user tidak ditemukan");
         }
 
-        userRole = userData.role; // ✅ FIX: assign ke variabel yang sudah ada
+        userRole = userData.role; // ✅ cukup assign, tidak pakai const lagi
       }
 
       // Insert topup request into database
