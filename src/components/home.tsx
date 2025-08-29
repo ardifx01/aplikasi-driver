@@ -299,7 +299,7 @@ const Home = () => {
         throw new Error("User not authenticated");
       }
 
-      // Generate reference number in format TP-YYYYMMDD-HHMMSS-RAND
+      // Generate reference number in format TD-YYYYMMDD-HHMMSS-RAND
       const now = new Date();
       const dateStr = now.toISOString().slice(0, 10).replace(/-/g, ""); // YYYYMMDD
       const timeStr = now.toTimeString().slice(0, 8).replace(/:/g, ""); // HHMMSS
@@ -313,13 +313,12 @@ const Home = () => {
         const fileName = `${Date.now()}.${fileExt}`;
         const filePath = `topup-proofs/${sessionData.session.user.id}/${fileName}`;
 
-        const { data: uploadData, error: uploadError } = await supabase.storage
+        const { error: uploadError } = await supabase.storage
           .from("transfer-proofs")
           .upload(filePath, topupForm.proof_url);
 
         if (uploadError) {
           console.error("Upload error:", uploadError);
-          // Continue without file if upload fails
         } else {
           const {
             data: { publicUrl },
@@ -341,16 +340,18 @@ const Home = () => {
       if (user?.role) {
         userRole = user.role;
       } else {
-        // If role is not available in current user state, fetch from database
         const { data: userData, error: userError } = await supabase
           .from("users")
           .select("role")
           .eq("id", sessionData.session.user.id)
           .single();
 
-        if (userData && userData.role) {
-          userRole = userData.role;
+        if (userError || !userData?.role) {
+          console.error("Gagal mengambil role user:", userError);
+          throw new Error("Role user tidak ditemukan");
         }
+
+        userRole = userData.role; // ✅ FIX: assign ke variabel yang sudah ada
       }
 
       // Insert topup request into database
@@ -359,14 +360,14 @@ const Home = () => {
         .insert({
           user_id: sessionData.session.user.id,
           amount: parseFloat(topupForm.amount),
-          bank_name: receivingBankName, // Bank penerima (receiving bank)
+          bank_name: receivingBankName,
           sender_bank: topupForm.sender_bank,
           sender_account: topupForm.sender_account,
           sender_name: topupForm.sender_name,
           destination_account: topupForm.destination_account,
           proof_url: proofUrl,
-          reference_no: referenceNo, // Add generated reference number
-          request_by_role: userRole, // Use actual user role from users table
+          reference_no: referenceNo,
+          request_by_role: userRole, // ✅ role dari tabel users
           method: "bank_transfer",
           status: "pending",
         })
@@ -385,11 +386,10 @@ const Home = () => {
       setIsTopupProcessing(true);
       setCurrentTopupId(data.id);
 
-      // Show processing toast notification
       toast({
         title: "Permintaan Top-up Berhasil Dikirim",
         description: "Mohon menunggu request Topup Sedang di proses",
-        duration: 0, // Don't auto-dismiss
+        duration: 0,
         className: "bg-green-50 border-green-200",
       });
 
