@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Link } from "react-router-dom";
 import dayjs from "dayjs";
 import { useNavigate } from "react-router-dom";
@@ -9,6 +9,7 @@ import { useLanguage } from "@/lib/languageContext";
 import LanguageSelector, {
   Language,
 } from "@/components/common/LanguageSelector";
+import { useToast } from "@/components/ui/use-toast";
 import {
   Card,
   CardContent,
@@ -19,6 +20,16 @@ import {
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Switch } from "@/components/ui/switch";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import {
   LogOut,
   Car,
@@ -40,6 +51,7 @@ import BookingHistory from "./dashboard/BookingHistory";
 import PaymentTracking from "./payments/PaymentTracking";
 import DriverNotifications from "./dashboard/DriverNotifications";
 import ProfilePage from "./profile/ProfilePage";
+import { Toaster } from "@/components/ui/toaster";
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
@@ -63,7 +75,21 @@ const Home = () => {
   const [isOnline, setIsOnline] = useState(false);
   const [locationInterval, setLocationInterval] =
     useState<NodeJS.Timeout | null>(null);
+  const [topupForm, setTopupForm] = useState({
+    amount: "",
+    sender_bank: "",
+    sender_account: "",
+    sender_name: "",
+    destination_account: "",
+    proof_url: null,
+  });
+  const [isSubmittingTopup, setIsSubmittingTopup] = useState(false);
+  const [topupSuccess, setTopupSuccess] = useState(false);
+  const [paymentMethods, setPaymentMethods] = useState([]);
+  const [isTopupProcessing, setIsTopupProcessing] = useState(false);
+  const [currentTopupId, setCurrentTopupId] = useState(null);
   const navigate = useNavigate();
+  const { toast } = useToast();
 
   useEffect(() => {
     const checkUser = async () => {
@@ -180,6 +206,7 @@ const Home = () => {
     };
 
     checkUser();
+    fetchPaymentMethods();
 
     const handleResize = () => {
       setIsMobile(window.innerWidth < 768);
@@ -211,6 +238,25 @@ const Home = () => {
     };
   }, []);
 
+  const fetchPaymentMethods = async () => {
+    try {
+      const { data, error } = await supabase
+        .from("payment_methods")
+        .select("*")
+        .eq("type", "manual")
+        .eq("is_active", true);
+
+      if (error) {
+        console.error("Error fetching payment methods:", error);
+        return;
+      }
+
+      setPaymentMethods(data || []);
+    } catch (error) {
+      console.error("Error fetching payment methods:", error);
+    }
+  };
+
   const fetchCurrentVehicle = async (userId) => {
     try {
       const { data: bookingData, error: bookingError } = await supabase
@@ -237,6 +283,241 @@ const Home = () => {
     } catch (error) {
       console.error("Error fetching current vehicle:", error);
     }
+  };
+
+  const handleTopupSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsSubmittingTopup(true);
+
+    try {
+      // Get current user session
+      const { data: sessionData, error: sessionError } =
+        await supabase.auth.getSession();
+      if (sessionError) throw sessionError;
+
+      if (!sessionData?.session?.user?.id) {
+        throw new Error("User not authenticated");
+      }
+
+      // Generate reference number in format TP-YYYYMMDD-HHMMSS-RAND
+      const now = new Date();
+      const dateStr = now.toISOString().slice(0, 10).replace(/-/g, ""); // YYYYMMDD
+      const timeStr = now.toTimeString().slice(0, 8).replace(/:/g, ""); // HHMMSS
+      const randomNum = Math.floor(1000 + Math.random() * 9000); // 4 digit random number
+      const referenceNo = `TD-${dateStr}-${timeStr}-${randomNum}`;
+
+      // Upload proof file if provided
+      let proofUrl = null;
+      if (topupForm.proof_url) {
+        const fileExt = topupForm.proof_url.name.split(".").pop();
+        const fileName = `${Date.now()}.${fileExt}`;
+        const filePath = `topup-proofs/${sessionData.session.user.id}/${fileName}`;
+
+        const { data: uploadData, error: uploadError } = await supabase.storage
+          .from("transfer-proofs")
+          .upload(filePath, topupForm.proof_url);
+
+        if (uploadError) {
+          console.error("Upload error:", uploadError);
+          // Continue without file if upload fails
+        } else {
+          const {
+            data: { publicUrl },
+          } = supabase.storage.from("transfer-proofs").getPublicUrl(filePath);
+          proofUrl = publicUrl;
+        }
+      }
+
+      // Determine the receiving bank name based on destination account
+      let receivingBankName = "";
+      if (topupForm.destination_account === "1640006707220") {
+        receivingBankName = "Mandiri";
+      } else if (topupForm.destination_account === "5440542222") {
+        receivingBankName = "BCA";
+      }
+
+      // Get user role from the current user data
+      let userRole = "driver"; // Default fallback
+      if (user?.role) {
+        userRole = user.role;
+      } else {
+        // If role is not available in current user state, fetch from database
+        const { data: userData, error: userError } = await supabase
+          .from("users")
+          .select("role")
+          .eq("id", sessionData.session.user.id)
+          .single();
+
+        if (userData && userData.role) {
+          userRole = userData.role;
+        }
+      }
+
+      // Insert topup request into database
+      const { data, error } = await supabase
+        .from("topup_requests")
+        .insert({
+          user_id: sessionData.session.user.id,
+          amount: parseFloat(topupForm.amount),
+          bank_name: receivingBankName, // Bank penerima (receiving bank)
+          sender_bank: topupForm.sender_bank,
+          sender_account: topupForm.sender_account,
+          sender_name: topupForm.sender_name,
+          destination_account: topupForm.destination_account,
+          proof_url: proofUrl,
+          reference_no: referenceNo, // Add generated reference number
+          request_by_role: userRole, // Use actual user role from users table
+          method: "bank_transfer",
+          status: "pending",
+        })
+        .select()
+        .single();
+
+      if (error) {
+        console.error("Database error:", error);
+        throw error;
+      }
+
+      console.log("Topup request created:", data);
+      console.log("Generated reference number:", referenceNo);
+
+      // Set processing state and store topup ID
+      setIsTopupProcessing(true);
+      setCurrentTopupId(data.id);
+
+      // Show processing toast notification
+      toast({
+        title: "Permintaan Top-up Berhasil Dikirim",
+        description: "Mohon menunggu request Topup Sedang di proses",
+        duration: 0, // Don't auto-dismiss
+        className: "bg-green-50 border-green-200",
+      });
+
+      setTopupSuccess(true);
+      setTopupForm({
+        amount: "",
+        sender_bank: "",
+        sender_account: "",
+        sender_name: "",
+        destination_account: "",
+        proof_url: null,
+      });
+
+      // Start monitoring topup status
+      monitorTopupStatus(data.id);
+
+      // Hide success message after 5 seconds
+      setTimeout(() => {
+        setTopupSuccess(false);
+      }, 5000);
+    } catch (error) {
+      console.error("Error submitting topup request:", error);
+      alert("Gagal mengirim permintaan top-up. Silakan coba lagi.");
+    } finally {
+      setIsSubmittingTopup(false);
+    }
+  };
+
+  const monitorTopupStatus = async (topupId) => {
+    const checkStatus = async () => {
+      try {
+        const { data, error } = await supabase
+          .from("topup_requests")
+          .select("status")
+          .eq("id", topupId)
+          .single();
+
+        if (error) {
+          console.error("Error checking topup status:", error);
+          return;
+        }
+
+        if (
+          data &&
+          (data.status === "verified" || data.status === "rejected")
+        ) {
+          // Status changed, re-enable form and hide notification
+          setIsTopupProcessing(false);
+          setCurrentTopupId(null);
+
+          // Show final status toast
+          toast({
+            title:
+              data.status === "verified"
+                ? "Top-up Disetujui"
+                : "Top-up Ditolak",
+            description:
+              data.status === "verified"
+                ? "Permintaan top-up Anda telah disetujui dan saldo akan segera ditambahkan."
+                : "Permintaan top-up Anda ditolak. Silakan hubungi admin untuk informasi lebih lanjut.",
+            duration: 5000,
+            className:
+              data.status === "verified"
+                ? "bg-green-50 border-green-200"
+                : "bg-red-50 border-red-200",
+          });
+
+          // Refresh payment stats to update saldo
+          if (user?.id) {
+            fetchPaymentStats(user.id);
+          }
+
+          return true; // Status changed
+        }
+        return false; // Status unchanged
+      } catch (error) {
+        console.error("Error monitoring topup status:", error);
+        return false;
+      }
+    };
+
+    // Check status every 5 seconds
+    const interval = setInterval(async () => {
+      const statusChanged = await checkStatus();
+      if (statusChanged) {
+        clearInterval(interval);
+      }
+    }, 5000);
+
+    // Also check immediately
+    const statusChanged = await checkStatus();
+    if (statusChanged) {
+      clearInterval(interval);
+    }
+
+    // Clean up interval after 30 minutes to prevent infinite polling
+    setTimeout(
+      () => {
+        clearInterval(interval);
+        if (isTopupProcessing) {
+          setIsTopupProcessing(false);
+          setCurrentTopupId(null);
+          toast({
+            title: "Timeout",
+            description:
+              "Monitoring top-up status dihentikan. Silakan refresh halaman untuk memeriksa status terbaru.",
+            duration: 5000,
+            className: "bg-yellow-50 border-yellow-200",
+          });
+        }
+      },
+      30 * 60 * 1000,
+    ); // 30 minutes
+  };
+
+  const handleTopupInputChange = (
+    field: string,
+    value: string | File | null,
+  ) => {
+    setTopupForm((prev) => ({
+      ...prev,
+      [field]: value,
+    }));
+  };
+
+  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0] || null;
+    handleTopupInputChange("proof_url", file);
   };
 
   const fetchPaymentStats = async (userId) => {
@@ -642,6 +923,7 @@ const Home = () => {
 
   const tabs = [
     { value: "booking", label: "Book Vehicle" },
+    { value: "topup", label: "Topup" },
     { value: "history", label: "Booking History" },
     { value: "payments", label: "Payments" },
     { value: "profile", label: "Profile" },
@@ -730,6 +1012,14 @@ const Home = () => {
             >
               <Car className="mr-2 h-4 w-4" />
               {getTranslation("bookVehicle", language)}
+            </Button>
+            <Button
+              variant={activeTab === "topup" ? "default" : "ghost"}
+              className="w-full justify-start"
+              onClick={() => setActiveTab("topup")}
+            >
+              <DollarSign className="mr-2 h-4 w-4" />
+              Topup
             </Button>
             <Button
               variant={activeTab === "history" ? "default" : "ghost"}
@@ -982,6 +1272,276 @@ const Home = () => {
                 </TabsContent>
 
                 <TabsContent
+                  value="topup"
+                  className="relative z-0 bg-white min-h-[240px]"
+                >
+                  <div className="max-w-2xl mx-auto p-6">
+                    <Card>
+                      <CardHeader>
+                        <CardTitle className="flex items-center gap-2">
+                          <DollarSign className="h-6 w-6 text-primary" />
+                          Permintaan Top-up
+                        </CardTitle>
+                        <CardDescription>
+                          Isi formulir di bawah untuk mengajukan top-up saldo
+                          melalui transfer bank.
+                        </CardDescription>
+                      </CardHeader>
+                      <CardContent>
+                        {/* Current Balance Display */}
+                        <div className="bg-muted p-4 rounded-lg mb-6">
+                          <p className="text-sm font-medium text-muted-foreground">
+                            Saldo Saat Ini:
+                          </p>
+                          <p className="text-2xl font-bold text-primary">
+                            Rp {driverSaldo.toLocaleString()}
+                          </p>
+                        </div>
+
+                        {/* Success Message */}
+                        {topupSuccess && (
+                          <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-6">
+                            <div className="flex items-center">
+                              <div className="flex-shrink-0">
+                                <svg
+                                  className="h-5 w-5 text-green-400"
+                                  viewBox="0 0 20 20"
+                                  fill="currentColor"
+                                >
+                                  <path
+                                    fillRule="evenodd"
+                                    d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
+                                    clipRule="evenodd"
+                                  />
+                                </svg>
+                              </div>
+                              <div className="ml-3">
+                                <h3 className="text-sm font-medium text-green-800">
+                                  Permintaan Top-up Berhasil Dikirim
+                                </h3>
+                                <p className="mt-1 text-sm text-green-700">
+                                  Permintaan top-up Anda telah berhasil dikirim
+                                  Mohon menunggu request Topup Sedang di proses.
+                                </p>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Topup Form */}
+                        <form
+                          onSubmit={handleTopupSubmit}
+                          className="space-y-6"
+                        >
+                          {/* Amount Field */}
+                          <div className="space-y-2">
+                            <Label htmlFor="amount">Jumlah Top-up *</Label>
+                            <Input
+                              id="amount"
+                              type="number"
+                              placeholder="Masukkan jumlah"
+                              value={topupForm.amount}
+                              onChange={(e) =>
+                                handleTopupInputChange("amount", e.target.value)
+                              }
+                              required
+                              min="10000"
+                              step="1000"
+                              disabled={isTopupProcessing}
+                            />
+                            <p className="text-xs text-muted-foreground">
+                              Minimum top-up Rp 10.000
+                            </p>
+                          </div>
+
+                          {/* Sender Bank */}
+                          <div className="space-y-2">
+                            <Label htmlFor="senderBank">Nama Bank *</Label>
+                            <Select
+                              value={topupForm.sender_bank}
+                              onValueChange={(value) =>
+                                handleTopupInputChange("sender_bank", value)
+                              }
+                              required
+                              disabled={isTopupProcessing}
+                            >
+                              <SelectTrigger>
+                                <SelectValue placeholder="Pilih Bank" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="BCA">BCA</SelectItem>
+                                <SelectItem value="Mandiri">
+                                  Bank Mandiri
+                                </SelectItem>
+                                <SelectItem value="BNI">BNI</SelectItem>
+                                <SelectItem value="BRI">BRI</SelectItem>
+                                <SelectItem value="CIMB Niaga">
+                                  CIMB Niaga
+                                </SelectItem>
+                                <SelectItem value="Bank Danamon">
+                                  Bank Danamon
+                                </SelectItem>
+                                <SelectItem value="Bank Permata">
+                                  Bank Permata
+                                </SelectItem>
+                                <SelectItem value="OCBC NISP">
+                                  OCBC NISP
+                                </SelectItem>
+                                <SelectItem value="Maybank">Maybank</SelectItem>
+                                <SelectItem value="Lainnya">
+                                  Bank Lainnya
+                                </SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+
+                          {/* Sender Account Number */}
+                          <div className="space-y-2">
+                            <Label htmlFor="senderAccount">
+                              Nomor Rekening *
+                            </Label>
+                            <Input
+                              id="senderAccount"
+                              type="text"
+                              placeholder="Masukkan nomor rekening"
+                              value={topupForm.sender_account}
+                              onChange={(e) =>
+                                handleTopupInputChange(
+                                  "sender_account",
+                                  e.target.value,
+                                )
+                              }
+                              required
+                              disabled={isTopupProcessing}
+                            />
+                          </div>
+
+                          {/* Sender Name */}
+                          <div className="space-y-2">
+                            <Label htmlFor="senderName">
+                              Nama Pemegang Rekening *
+                            </Label>
+                            <Input
+                              id="senderName"
+                              type="text"
+                              placeholder="Masukkan nama pemegang rekening"
+                              value={topupForm.sender_name}
+                              onChange={(e) =>
+                                handleTopupInputChange(
+                                  "sender_name",
+                                  e.target.value,
+                                )
+                              }
+                              required
+                              disabled={isTopupProcessing}
+                            />
+                          </div>
+
+                          {/* Bank Penerima */}
+                          <div className="space-y-3">
+                            <Label>Bank Penerima *</Label>
+                            <RadioGroup
+                              value={topupForm.destination_account}
+                              onValueChange={(value) =>
+                                handleTopupInputChange(
+                                  "destination_account",
+                                  value,
+                                )
+                              }
+                              className="space-y-3"
+                              disabled={isTopupProcessing}
+                            >
+                              <div className="flex items-center space-x-3 p-3 border rounded-lg hover:bg-muted/50 transition-colors">
+                                <RadioGroupItem
+                                  value="1640006707220"
+                                  id="mandiri"
+                                />
+                                <Label
+                                  htmlFor="mandiri"
+                                  className="flex-1 cursor-pointer font-normal"
+                                >
+                                  <div className="font-medium">Mandiri</div>
+                                  <div className="text-sm text-muted-foreground">
+                                    1640006707220 - PT Cahaya Sejati Teknologi
+                                  </div>
+                                </Label>
+                              </div>
+                              <div className="flex items-center space-x-3 p-3 border rounded-lg hover:bg-muted/50 transition-colors">
+                                <RadioGroupItem value="5440542222" id="bca" />
+                                <Label
+                                  htmlFor="bca"
+                                  className="flex-1 cursor-pointer font-normal"
+                                >
+                                  <div className="font-medium">BCA</div>
+                                  <div className="text-sm text-muted-foreground">
+                                    5440542222 - Travelin
+                                  </div>
+                                </Label>
+                              </div>
+                            </RadioGroup>
+                          </div>
+
+                          {/* Upload Proof of Transfer */}
+                          <div className="space-y-2">
+                            <Label htmlFor="proofFile">
+                              Upload Bukti Transfer *
+                            </Label>
+                            <div className="space-y-2">
+                              <Input
+                                id="proofFile"
+                                type="file"
+                                accept="image/*,.pdf"
+                                onChange={handleFileChange}
+                                className="cursor-pointer"
+                                disabled={isTopupProcessing}
+                              />
+                              <p className="text-xs text-muted-foreground">
+                                {topupForm.proof_url
+                                  ? `File dipilih: ${topupForm.proof_url.name}`
+                                  : "Tidak ada file dipilih"}
+                              </p>
+                              <p className="text-xs text-muted-foreground">
+                                Format yang didukung: JPG, PNG, PDF (Maks. 5MB)
+                              </p>
+                            </div>
+                          </div>
+
+                          {/* Submit Button */}
+                          <Button
+                            type="submit"
+                            className="w-full"
+                            disabled={
+                              isSubmittingTopup ||
+                              isTopupProcessing ||
+                              !topupForm.amount ||
+                              !topupForm.sender_bank ||
+                              !topupForm.sender_account ||
+                              !topupForm.sender_name ||
+                              !topupForm.destination_account ||
+                              !topupForm.proof_url
+                            }
+                          >
+                            {isSubmittingTopup ? (
+                              <>
+                                <div className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-background border-t-transparent"></div>
+                                Mengirim...
+                              </>
+                            ) : isTopupProcessing ? (
+                              <>
+                                <div className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-background border-t-transparent"></div>
+                                Sedang Diproses...
+                              </>
+                            ) : (
+                              "Kirim Permintaan Top-up"
+                            )}
+                          </Button>
+                        </form>
+                      </CardContent>
+                    </Card>
+                  </div>
+                </TabsContent>
+
+                <TabsContent
                   value="history"
                   className="relative z-0 bg-white min-h-[240px]"
                 >
@@ -1143,6 +1703,17 @@ const Home = () => {
                     Pesan Kendaraan
                   </Button>
                   <Button
+                    variant={activeTab === "topup" ? "default" : "ghost"}
+                    className="w-full justify-start"
+                    onClick={() => {
+                      setActiveTab("topup");
+                      setShowNotifications(false);
+                    }}
+                  >
+                    <DollarSign className="mr-2 h-4 w-4" />
+                    Topup
+                  </Button>
+                  <Button
                     variant={activeTab === "history" ? "default" : "ghost"}
                     className="w-full justify-start"
                     onClick={() => {
@@ -1227,7 +1798,7 @@ const Home = () => {
           )}
 
           <div className="fixed bottom-0 left-0 right-0 border-t bg-background p-2">
-            <div className="grid grid-cols-5 gap-1">
+            <div className="grid grid-cols-6 gap-1">
               <Button
                 variant="ghost"
                 className={`flex flex-col items-center justify-center rounded-md p-2 ${activeTab === "booking" ? "bg-muted" : ""}`}
@@ -1237,6 +1808,16 @@ const Home = () => {
               >
                 <Car className="h-5 w-5" />
                 <span className="mt-1 text-xs">Pesan</span>
+              </Button>
+              <Button
+                variant="ghost"
+                className={`flex flex-col items-center justify-center rounded-md p-2 ${activeTab === "topup" ? "bg-muted" : ""}`}
+                onClick={() => {
+                  setActiveTab("topup");
+                }}
+              >
+                <DollarSign className="h-5 w-5" />
+                <span className="mt-1 text-xs">Topup</span>
               </Button>
               <Button
                 variant="ghost"
@@ -1280,22 +1861,11 @@ const Home = () => {
                 <Bell className="h-5 w-5" />
                 <span className="mt-1 text-xs">Notif</span>
               </Button>
-              <Button
-                variant="ghost"
-                className={`flex flex-col items-center justify-center rounded-md p-2 ${
-                  activeTab === "airport" ? "bg-muted" : ""
-                }`}
-                onClick={() => {
-                  setActiveTab("airport");
-                }}
-              >
-                <Plane className="h-5 w-5" />
-                <span className="mt-1 text-xs">Airport</span>
-              </Button>
             </div>
           </div>
         </>
       )}
+      <Toaster />
     </div>
   );
 };

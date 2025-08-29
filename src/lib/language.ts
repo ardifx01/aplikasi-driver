@@ -20,7 +20,24 @@ export type TranslationKey =
   | "plateNumber"
   | "payNow"
   | "viewVehicles"
-  | "vehicleModels";
+  | "vehicleModels"
+  | "topupRequest"
+  | "topupAmount"
+  | "bankName"
+  | "accountNumber"
+  | "accountHolderName"
+  | "submitTopupRequest"
+  | "selectBank"
+  | "enterAmount"
+  | "enterAccountNumber"
+  | "enterAccountHolderName"
+  | "topupRequestSubmitted"
+  | "topupRequestSuccess"
+  | "bankPenerima"
+  | "selectBankPenerima"
+  | "uploadProofTransfer"
+  | "selectFile"
+  | "noFileSelected";
 
 export const translations: Record<Language, Record<TranslationKey, string>> = {
   en: {
@@ -45,6 +62,24 @@ export const translations: Record<Language, Record<TranslationKey, string>> = {
     viewVehicles: "View Vehicles",
     vehicleModels: "Vehicle Models",
     airportTransfer: "Airport Transfer",
+    topupRequest: "Top-up Request",
+    topupAmount: "Top-up Amount",
+    bankName: "Bank Name",
+    accountNumber: "Account Number",
+    accountHolderName: "Account Holder Name",
+    submitTopupRequest: "Submit Top-up Request",
+    selectBank: "Select Bank",
+    enterAmount: "Enter amount",
+    enterAccountNumber: "Enter account number",
+    enterAccountHolderName: "Enter account holder name",
+    topupRequestSubmitted: "Top-up request submitted successfully",
+    topupRequestSuccess:
+      "Your top-up request has been submitted and will be processed within 1-2 business days.",
+    bankPenerima: "Receiving Bank",
+    selectBankPenerima: "Select receiving bank",
+    uploadProofTransfer: "Upload Transfer Proof",
+    selectFile: "Select file",
+    noFileSelected: "No file selected",
   },
   id: {
     dashboard: "Portal Pengemudi",
@@ -68,6 +103,24 @@ export const translations: Record<Language, Record<TranslationKey, string>> = {
     viewVehicles: "Lihat Kendaraan",
     vehicleModels: "Model Kendaraan",
     airportTransfer: "Airport Transfer",
+    topupRequest: "Permintaan Top-up",
+    topupAmount: "Jumlah Top-up",
+    bankName: "Nama Bank",
+    accountNumber: "Nomor Rekening",
+    accountHolderName: "Nama Pemegang Rekening",
+    submitTopupRequest: "Kirim Permintaan Top-up",
+    selectBank: "Pilih Bank",
+    enterAmount: "Masukkan jumlah",
+    enterAccountNumber: "Masukkan nomor rekening",
+    enterAccountHolderName: "Masukkan nama pemegang rekening",
+    topupRequestSubmitted: "Permintaan top-up berhasil dikirim",
+    topupRequestSuccess:
+      "Permintaan top-up Anda telah dikirim dan akan diproses dalam 1-2 hari kerja.",
+    bankPenerima: "Bank Penerima",
+    selectBankPenerima: "Pilih bank penerima",
+    uploadProofTransfer: "Upload Bukti Transfer",
+    selectFile: "Pilih file",
+    noFileSelected: "Tidak ada file dipilih",
   },
 };
 
