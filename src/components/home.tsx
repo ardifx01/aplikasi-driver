@@ -312,7 +312,7 @@ const Home = () => {
       const dateStr = now.toISOString().slice(0, 10).replace(/-/g, ""); // YYYYMMDD
       const timeStr = now.toTimeString().slice(0, 8).replace(/:/g, ""); // HHMMSS
       const randomNum = Math.floor(1000 + Math.random() * 9000); // 4 digit random number
-      const referenceNo = `TD-${dateStr}-${timeStr}-${randomNum}`;
+      const referenceNo = `TOP-DR-${dateStr}-${timeStr}-${randomNum}`;
 
       // Upload proof file if provided
       let proofUrl: string | null = null;
