@@ -37,7 +37,8 @@ export type TranslationKey =
   | "selectBankPenerima"
   | "uploadProofTransfer"
   | "selectFile"
-  | "noFileSelected";
+  | "noFileSelected"
+  | "topupHistory";
 
 export const translations: Record<Language, Record<TranslationKey, string>> = {
   en: {
@@ -80,6 +81,7 @@ export const translations: Record<Language, Record<TranslationKey, string>> = {
     uploadProofTransfer: "Upload Transfer Proof",
     selectFile: "Select file",
     noFileSelected: "No file selected",
+    topupHistory: "Topup History",
   },
   id: {
     dashboard: "Portal Pengemudi",
@@ -121,6 +123,7 @@ export const translations: Record<Language, Record<TranslationKey, string>> = {
     uploadProofTransfer: "Upload Bukti Transfer",
     selectFile: "Pilih file",
     noFileSelected: "Tidak ada file dipilih",
+    topupHistory: "Riwayat Topup",
   },
 };
 

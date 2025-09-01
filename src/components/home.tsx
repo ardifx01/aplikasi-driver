@@ -51,6 +51,7 @@ import BookingHistory from "./dashboard/BookingHistory";
 import PaymentTracking from "./payments/PaymentTracking";
 import DriverNotifications from "./dashboard/DriverNotifications";
 import ProfilePage from "./profile/ProfilePage";
+import TopupHistory from "./dashboard/TopupHistory";
 import { Toaster } from "@/components/ui/toaster";
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
@@ -974,6 +975,7 @@ const Home = () => {
   const tabs = [
     { value: "booking", label: "Book Vehicle" },
     { value: "topup", label: "Topup" },
+    { value: "topup-history", label: "Topup History" },
     { value: "history", label: "Booking History" },
     { value: "payments", label: "Payments" },
     { value: "profile", label: "Profile" },
@@ -1070,6 +1072,14 @@ const Home = () => {
             >
               <DollarSign className="mr-2 h-4 w-4" />
               Topup
+            </Button>
+            <Button
+              variant={activeTab === "topup-history" ? "default" : "ghost"}
+              className="w-full justify-start"
+              onClick={() => setActiveTab("topup-history")}
+            >
+              <Clock className="mr-2 h-4 w-4" />
+              {getTranslation("topupHistory", language)}
             </Button>
             <Button
               variant={activeTab === "history" ? "default" : "ghost"}
@@ -1319,6 +1329,13 @@ const Home = () => {
                       driverSaldo={driverSaldo}
                     />
                   )}
+                </TabsContent>
+
+                <TabsContent
+                  value="topup-history"
+                  className="relative z-0 bg-white min-h-[240px]"
+                >
+                  <TopupHistory userId={user?.id} />
                 </TabsContent>
 
                 <TabsContent
@@ -1762,6 +1779,19 @@ const Home = () => {
                   >
                     <DollarSign className="mr-2 h-4 w-4" />
                     Topup
+                  </Button>
+                  <Button
+                    variant={
+                      activeTab === "topup-history" ? "default" : "ghost"
+                    }
+                    className="w-full justify-start"
+                    onClick={() => {
+                      setActiveTab("topup-history");
+                      setShowNotifications(false);
+                    }}
+                  >
+                    <Clock className="mr-2 h-4 w-4" />
+                    {getTranslation("topupHistory", language)}
                   </Button>
                   <Button
                     variant={activeTab === "history" ? "default" : "ghost"}
