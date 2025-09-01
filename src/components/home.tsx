@@ -1361,7 +1361,21 @@ const Home = () => {
                             Saldo Saat Ini:
                           </p>
                           <p className="text-2xl font-bold text-primary">
-                            Rp {driverSaldo.toLocaleString()}
+                            Rp{" "}
+                            {(() => {
+                              const saldoValue =
+                                typeof driverSaldo === "number"
+                                  ? driverSaldo
+                                  : 0;
+                              console.log(
+                                "🎯 Topup - Rendering saldo:",
+                                saldoValue,
+                                "(type:",
+                                typeof driverSaldo,
+                                ")",
+                              );
+                              return saldoValue.toLocaleString();
+                            })()}
                           </p>
                         </div>
 
