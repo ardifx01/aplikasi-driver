@@ -60,35 +60,29 @@ const ResetPasswordForm = () => {
   });
 
   useEffect(() => {
-    // Check if we have the access token in the URL
-    const hashParams = new URLSearchParams(location.hash.substring(1));
-    if (!hashParams.get("access_token")) {
-      setError(
-        "Invalid or expired reset link. Please request a new password reset.",
-      );
-    }
-  }, [location]);
+    const { data: listener } = supabase.auth.onAuthStateChange(
+      async (event, session) => {
+        if (event === "PASSWORD_RECOVERY" && session) {
+          // User berhasil buka link reset → session sudah aktif
+          console.log("Recovery session aktif", session);
+        }
+      },
+    );
+
+    return () => {
+      listener.subscription.unsubscribe();
+    };
+  }, []);
 
   const onSubmit = async (data: ResetPasswordFormValues) => {
     setLoading(true);
     setError(null);
 
     try {
-      // Get the access token from the URL hash
-      const hashParams = new URLSearchParams(location.hash.substring(1));
-      const accessToken = hashParams.get("access_token");
-
-      if (!accessToken) {
-        throw new Error(
-          "Invalid or expired reset link. Please request a new password reset.",
-        );
-      }
-
-      // Update the user's password
-      const { error } = await supabase.auth.updateUser(
-        { password: data.password },
-        { accessToken },
-      );
+      // Supabase sudah punya session dari link reset
+      const { error } = await supabase.auth.updateUser({
+        password: data.password,
+      });
 
       if (error) throw error;
 
