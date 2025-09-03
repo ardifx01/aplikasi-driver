@@ -251,7 +251,7 @@ const Home = () => {
     try {
       const { data, error } = await supabase
         .from("payment_methods")
-        .select("*")
+        .select("account_holder, account_number, bank_name")
         .eq("type", "manual")
         .eq("is_active", true);
 
@@ -336,13 +336,11 @@ const Home = () => {
         }
       }
 
-      // Determine the receiving bank name based on destination account
-      let receivingBankName = "";
-      if (topupForm.destination_account === "1640006707220") {
-        receivingBankName = "Mandiri";
-      } else if (topupForm.destination_account === "5440542222") {
-        receivingBankName = "BCA";
-      }
+      // Find the selected payment method to get bank name
+      const selectedPaymentMethod = paymentMethods.find(
+        (method) => method.account_number === topupForm.destination_account,
+      );
+      const receivingBankName = selectedPaymentMethod?.bank_name || "";
 
       // Determine user role for request_by_role field
       let userRole = "user"; // Default fallback
@@ -1532,33 +1530,29 @@ const Home = () => {
                               className="space-y-3"
                               disabled={isTopupProcessing}
                             >
-                              <div className="flex items-center space-x-3 p-3 border rounded-lg hover:bg-muted/50 transition-colors">
-                                <RadioGroupItem
-                                  value="1640006707220"
-                                  id="mandiri"
-                                />
-                                <Label
-                                  htmlFor="mandiri"
-                                  className="flex-1 cursor-pointer font-normal"
+                              {paymentMethods.map((method, index) => (
+                                <div
+                                  key={index}
+                                  className="flex items-center space-x-3 p-3 border rounded-lg hover:bg-muted/50 transition-colors"
                                 >
-                                  <div className="font-medium">Mandiri</div>
-                                  <div className="text-sm text-muted-foreground">
-                                    1640006707220 - PT Cahaya Sejati Teknologi
-                                  </div>
-                                </Label>
-                              </div>
-                              <div className="flex items-center space-x-3 p-3 border rounded-lg hover:bg-muted/50 transition-colors">
-                                <RadioGroupItem value="5440542222" id="bca" />
-                                <Label
-                                  htmlFor="bca"
-                                  className="flex-1 cursor-pointer font-normal"
-                                >
-                                  <div className="font-medium">BCA</div>
-                                  <div className="text-sm text-muted-foreground">
-                                    5440542222 - Travelin
-                                  </div>
-                                </Label>
-                              </div>
+                                  <RadioGroupItem
+                                    value={method.account_number}
+                                    id={`bank-${index}`}
+                                  />
+                                  <Label
+                                    htmlFor={`bank-${index}`}
+                                    className="flex-1 cursor-pointer font-normal"
+                                  >
+                                    <div className="font-medium">
+                                      {method.bank_name}
+                                    </div>
+                                    <div className="text-sm text-muted-foreground">
+                                      {method.account_number} -{" "}
+                                      {method.account_holder}
+                                    </div>
+                                  </Label>
+                                </div>
+                              ))}
                             </RadioGroup>
                           </div>
 
