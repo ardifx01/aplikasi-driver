@@ -7,6 +7,7 @@ import PaymentTracking from "./components/payments/PaymentTracking";
 import PaymentForm from "./components/payments/PaymentForm";
 import BookingHistory from "./components/dashboard/BookingHistory";
 import ResetPasswordForm from "./components/auth/ResetPasswordForm";
+import ForgotPasswordForm from "./components/auth/ForgotPasswordForm";
 import ProfilePage from "./components/profile/ProfilePage";
 import routes from "tempo-routes";
 
@@ -25,6 +26,7 @@ function App() {
         <Route path="/payment/:bookingId" element={<PaymentForm />} />
         <Route path="/booking-history" element={<BookingHistory />} />
         <Route path="/reset-password" element={<ResetPasswordForm />} />
+        <Route path="/forgot-password" element={<ForgotPasswordForm />} />
         <Route path="/profile" element={<ProfilePage />} />
 
         {/* Tempo storybook route - must be before any catch-all routes */}

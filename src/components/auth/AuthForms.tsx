@@ -62,7 +62,6 @@ const AuthForms = (props) => {
   const [activeTab, setActiveTab] = useState<string>("login");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState<boolean>(false);
-  const [resetEmailSent, setResetEmailSent] = useState<boolean>(false);
   const navigate = useNavigate();
 
   // Login form
@@ -95,30 +94,16 @@ const AuthForms = (props) => {
     },
   });
 
-  const handleForgotPassword = async () => {
-    const email = document.getElementById("email") as HTMLInputElement;
+  const handleForgotPassword = () => {
+    navigate("/forgot-password");
+  };
 
-    if (!email || !email.value || !email.value.includes("@")) {
-      setError("Please enter a valid email address");
-      return;
-    }
-
-    setLoading(true);
-    setError(null);
-
+  const handleSignOut = async () => {
     try {
-      const { error } = await supabase.auth.resetPasswordForEmail(email.value, {
-        redirectTo: window.location.origin + "/reset-password",
-      });
-
-      if (error) throw error;
-
-      setResetEmailSent(true);
-      setError(null);
-    } catch (err: any) {
-      setError(err.message || "Failed to send reset email. Please try again.");
-    } finally {
-      setLoading(false);
+      await supabase.auth.signOut();
+      navigate("/");
+    } catch (error) {
+      console.error("Error signing out:", error);
     }
   };
 
@@ -225,14 +210,6 @@ const AuthForms = (props) => {
               <Alert variant="destructive" className="mb-4">
                 <AlertCircle className="h-4 w-4" />
                 <AlertDescription>{error}</AlertDescription>
-              </Alert>
-            )}
-
-            {resetEmailSent && (
-              <Alert className="mb-4 bg-green-50 text-green-800 border-green-200">
-                <AlertDescription>
-                  Password reset email sent. Please check your inbox.
-                </AlertDescription>
               </Alert>
             )}
 
