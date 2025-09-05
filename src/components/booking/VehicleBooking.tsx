@@ -1,6 +1,12 @@
 import React, { useState, useEffect } from "react";
 import { format } from "date-fns";
 import { useNavigate, useLocation, useSearchParams } from "react-router-dom";
+import dayjs from "dayjs";
+import utc from "dayjs/plugin/utc";
+import timezone from "dayjs/plugin/timezone";
+
+dayjs.extend(utc);
+dayjs.extend(timezone);
 import {
   Clock,
   DollarSign,
@@ -57,6 +63,10 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { supabase } from "@/lib/supabase";
+
+const formatToWIB = (isoString: string) => {
+  return dayjs(isoString).tz("Asia/Jakarta").format("DD MMM YYYY, HH:mm");
+};
 
 interface VehicleBookingProps {
   userId?: string;
@@ -393,6 +403,16 @@ const VehicleBooking = ({
       // Generate booking code
       const bookingCode = generateBookingCode();
 
+      // Function to get current local time in Asia/Jakarta timezone
+      const getCurrentLocalTime = () => {
+        const now = new Date();
+        // Convert to Asia/Jakarta timezone
+        const jakartaTime = new Date(
+          now.toLocaleString("en-US", { timeZone: "Asia/Jakarta" }),
+        );
+        return jakartaTime.toISOString();
+      };
+
       // Create booking data with only valid bookings table columns
       const bookingData = {
         vehicle_id: selectedVehicle.id,
@@ -424,6 +444,9 @@ const VehicleBooking = ({
         driver_id: driverId, // Re-enabled to ensure driver_id is populated
         name: driverName,
         code_booking: bookingCode, // Add the generated booking code
+        created_at: getCurrentLocalTime(), // Set created_at with local timezone (Asia/Jakarta)
+        created_at_tz: getCurrentLocalTime(), // Set created_at_tz with local timezone (Asia/Jakarta)
+        updated_at: getCurrentLocalTime(), // Set updated_at with local timezone (Asia/Jakarta)
       };
       console.log("returnDate:", returnDate);
       console.log("Booking data to be inserted:", bookingData);
@@ -433,6 +456,9 @@ const VehicleBooking = ({
       // Validate that we don't have any invalid column names
       const validColumns = [
         "vehicle_id",
+        "created_at",
+        "created_at_tz",
+        "updated_at",
         "code_booking",
         "driver_option",
         "vehicle_type",

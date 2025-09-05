@@ -163,7 +163,7 @@ const TransactionHistory = ({ userId }: TransactionHistoryProps = {}) => {
           .select("*")
           .eq("user_id", currentUserId) // ✅ filter user
           .not("user_id", "is", null) // ✅ pastikan user_id ada
-          .order("trans_date", { ascending: true });
+          .order("trans_date", { ascending: false });
 
         if (historiError) {
           console.error("Error fetching histori_transaksi:", historiError);
@@ -216,6 +216,12 @@ const TransactionHistory = ({ userId }: TransactionHistoryProps = {}) => {
                 ? balanceAfter - Math.abs(transactionAmount)
                 : balanceAfter + Math.abs(transactionAmount);
 
+            const dateUTC = new Date(histori.trans_date);
+
+            const localDate = new Date(
+              dateUTC.toLocaleString("en-US", { timeZone: "Asia/Jakarta" }),
+            );
+
             allTransactions.push({
               id: `histori-${histori.id}`,
               type,
@@ -223,7 +229,7 @@ const TransactionHistory = ({ userId }: TransactionHistoryProps = {}) => {
               amount: transactionAmount,
               balance_before: balanceBefore,
               balance_after: balanceAfter,
-              date: new Date(histori.trans_date || new Date()),
+              date: localDate, // ✅ sudah dikonversi ke WIB
               status: "completed",
               reference_no: histori.kode_booking || histori.id,
             });
@@ -569,7 +575,14 @@ const TransactionHistory = ({ userId }: TransactionHistoryProps = {}) => {
                       {filteredTransactions.map((transaction) => (
                         <TableRow key={transaction.id}>
                           <TableCell className="font-medium">
-                            {format(transaction.date, "dd/MM/yyyy HH:mm")}
+                            {transaction.date.toLocaleString("id-ID", {
+                              timeZone: "Asia/Jakarta",
+                              day: "2-digit",
+                              month: "2-digit",
+                              year: "numeric",
+                              hour: "2-digit",
+                              minute: "2-digit",
+                            })}
                           </TableCell>
                           <TableCell>
                             <div className="flex items-center gap-2">

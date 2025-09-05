@@ -477,9 +477,16 @@ const TopupHistory = ({ userId }: TopupHistoryProps = {}) => {
                                 Tanggal Permintaan
                               </p>
                               <p className="text-sm text-gray-600">
-                                {format(
-                                  new Date(request.created_at),
-                                  "dd MMMM yyyy, HH:mm",
+                                {new Date(request.created_at).toLocaleString(
+                                  "id-ID",
+                                  {
+                                    timeZone: "Asia/Jakarta",
+                                    day: "2-digit",
+                                    month: "long",
+                                    year: "numeric",
+                                    hour: "2-digit",
+                                    minute: "2-digit",
+                                  },
                                 )}
                               </p>
                             </div>

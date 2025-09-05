@@ -49,8 +49,14 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
-import { format, isValid } from "date-fns";
+import { format, isValid, parseISO } from "date-fns";
 import dayjs from "dayjs";
+import utc from "dayjs/plugin/utc";
+import timezone from "dayjs/plugin/timezone";
+
+dayjs.extend(utc);
+dayjs.extend(timezone);
+import { id } from "date-fns/locale";
 import {
   CalendarIcon,
   ChevronDown,
@@ -80,6 +86,7 @@ interface Booking {
   notes_driver?: string;
   license_plate?: string;
   vehicle_make?: string;
+  created_at?: string;
 }
 
 interface Payment {
@@ -135,6 +142,12 @@ const BookingHistory = ({ userId, driverSaldo }: BookingHistoryProps = {}) => {
   // Bookings data - fetched from Supabase
   const [mockBookings, setMockBookings] = useState<Booking[]>([]);
 
+  const createdAtWIB = dayjs("2025-09-05 10:27:07+00")
+    .tz("Asia/Jakarta")
+    .format("DD MMM YYYY, HH:mm");
+
+  console.log(createdAtWIB); // "05 Sep 2025, 17:27"
+
   // Payments data - fetched from Supabase
   const [payments, setPayments] = useState<Payment[]>([]);
 
@@ -185,6 +198,8 @@ const BookingHistory = ({ userId, driverSaldo }: BookingHistoryProps = {}) => {
           .select(
             `
             id,
+            created_at,
+            created_at_tz,
             code_booking,
             notes_driver,
             license_plate,
@@ -224,6 +239,7 @@ const BookingHistory = ({ userId, driverSaldo }: BookingHistoryProps = {}) => {
               .select(
                 `
               id,
+              created_at,
               notes_driver,
               license_plate,
               plate_number,
@@ -292,6 +308,7 @@ const BookingHistory = ({ userId, driverSaldo }: BookingHistoryProps = {}) => {
                     .select(
                       `
                     id,
+                    created_at,
                     notes_driver,
                     license_plate,
                     plate_number,
@@ -334,25 +351,47 @@ const BookingHistory = ({ userId, driverSaldo }: BookingHistoryProps = {}) => {
             bookingsData.length,
           );
           // Transform the data to match our Booking interface
-          const formattedBookings = bookingsData.map((booking) => ({
-            id: booking.id,
-            code_booking: booking.code_booking,
-            vehicle_name: booking.model || "Unknown Vehicle",
-            vehicle_type: booking.vehicle_type || "Unknown Type",
-            booking_date: new Date(booking.booking_date),
-            start_time: booking.start_time || "00:00",
-            duration: booking.duration || 0,
-            status: booking.bookings_status || booking.status || "pending",
-            payment_method: booking.payment_method || "Unknown",
-            total_amount: booking.total_amount || 0,
-            paid_amount: booking.paid_amount || 0,
-            remaining_payments: booking.remaining_payments || 0,
-            user_id: booking.user_id || booking.customer_id,
-            license_plate:
-              booking.license_plate || booking.plate_number || "Unknown Plate",
-            vehicle_make: booking.make || "Unknown Make",
-            notes_driver: booking.notes_driver || null,
-          }));
+          const formattedBookings = bookingsData.map((booking) => {
+            // Parse booking_date properly to ensure it's in local timezone
+            let bookingDate;
+            try {
+              if (booking.booking_date) {
+                // If booking_date is already a date string, parse it in local timezone
+                bookingDate = dayjs(booking.booking_date)
+                  .tz("Asia/Jakarta")
+                  .toDate();
+              } else {
+                bookingDate = new Date();
+              }
+            } catch (error) {
+              console.error("Error parsing booking_date:", error);
+              bookingDate = new Date();
+            }
+
+            return {
+              id: booking.id,
+              created_at: booking.created_at,
+              created_at_tz: booking.created_at_tz,
+              code_booking: booking.code_booking,
+              vehicle_name: booking.model || "Unknown Vehicle",
+              vehicle_type: booking.vehicle_type || "Unknown Type",
+              booking_date: bookingDate,
+              start_time: booking.start_time || "00:00",
+              duration: booking.duration || 0,
+              status: booking.bookings_status || booking.status || "pending",
+              payment_method: booking.payment_method || "Unknown",
+              total_amount: booking.total_amount || 0,
+              paid_amount: booking.paid_amount || 0,
+              remaining_payments: booking.remaining_payments || 0,
+              user_id: booking.user_id || booking.customer_id,
+              license_plate:
+                booking.license_plate ||
+                booking.plate_number ||
+                "Unknown Plate",
+              vehicle_make: booking.make || "Unknown Make",
+              notes_driver: booking.notes_driver || null,
+            };
+          });
 
           setMockBookings(formattedBookings);
           console.log(
@@ -545,7 +584,7 @@ const BookingHistory = ({ userId, driverSaldo }: BookingHistoryProps = {}) => {
         const { data: userBookings } = await supabase
           .from("bookings")
           .select(
-            "id, user_id, customer_id, vehicle_name, total_amount, paid_amount, remaining_payments, notes_driver",
+            "id, user_id, customer_id, vehicle_name, total_amount, paid_amount, remaining_payments, notes_driver, created_at",
           )
           .or(`user_id.eq.${currentUserId},customer_id.eq.${currentUserId}`);
 
@@ -682,16 +721,18 @@ const BookingHistory = ({ userId, driverSaldo }: BookingHistoryProps = {}) => {
     return date instanceof Date && !isNaN(date.getTime()) && isValid(date);
   };
 
-  // Format date safely using dayjs for consistency
+  // Format date safely using dayjs for consistency with WIB timezone
   const formatDate = (date: any, formatStr: string): string => {
     try {
-      const parsed = dayjs(date); // tanpa .add()
+      const parsed = dayjs(date).tz("Asia/Jakarta");
 
       if (!parsed.isValid()) return "Invalid date";
 
       if (formatStr === "PPP") return parsed.format("DD/MM/YYYY");
       if (formatStr === "dd MMM yyyy") return parsed.format("DD MMM YYYY");
       if (formatStr === "yyyy-MM-dd") return parsed.format("YYYY-MM-DD");
+      if (formatStr === "dd MMM yyyy, HH:mm")
+        return parsed.format("DD MMM YYYY, HH:mm");
 
       return parsed.format(formatStr);
     } catch (error) {
@@ -1283,7 +1324,22 @@ const BookingHistory = ({ userId, driverSaldo }: BookingHistoryProps = {}) => {
                                           </p>
                                           <p>
                                             {booking.notes_driver ||
-                                              "Tidak ada keterangan"}
+                                              "Tidak ada pembatalan"}
+                                          </p>
+                                        </div>
+                                        <div>
+                                          <p className="text-sm text-muted-foreground">
+                                            Tanggal Pemesanan Dibuat
+                                          </p>
+                                          <p>
+                                            {booking?.created_at ||
+                                            booking?.created_at_tz
+                                              ? formatDate(
+                                                  booking.created_at_tz ||
+                                                    booking.created_at,
+                                                  "dd MMM yyyy, HH:mm",
+                                                )
+                                              : "-"}
                                           </p>
                                         </div>
                                       </div>
