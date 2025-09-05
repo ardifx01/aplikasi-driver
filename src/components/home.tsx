@@ -52,6 +52,7 @@ import PaymentTracking from "./payments/PaymentTracking";
 import DriverNotifications from "./dashboard/DriverNotifications";
 import ProfilePage from "./profile/ProfilePage";
 import TopupHistory from "./dashboard/TopupHistory";
+import TransactionHistory from "./dashboard/TransactionHistory";
 import { Toaster } from "@/components/ui/toaster";
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
@@ -147,6 +148,17 @@ const Home = () => {
             setUser(driverData);
             setDriverSaldo(saldoValue);
             setIsOnline(driverData.is_online || false);
+
+            // Auto-populate sender_name in topup form only if it's empty
+            setTopupForm((prev) => ({
+              ...prev,
+              sender_name:
+                prev.sender_name ||
+                driverData.name ||
+                driverData.full_name ||
+                "",
+            }));
+
             console.log(
               "✅ Home - Using driver data, saldo:",
               saldoValue,
@@ -191,6 +203,14 @@ const Home = () => {
               setUser(userData);
               setDriverSaldo(saldoValue);
               setIsOnline(false); // Default to offline for users table
+
+              // Auto-populate sender_name in topup form only if it's empty
+              setTopupForm((prev) => ({
+                ...prev,
+                sender_name:
+                  prev.sender_name || userData.full_name || userData.name || "",
+              }));
+
               console.log(
                 "✅ Home - Using user data, saldo:",
                 saldoValue,
@@ -385,6 +405,7 @@ const Home = () => {
           sender_account: topupForm.sender_account,
           sender_name: topupForm.sender_name,
           destination_account: topupForm.destination_account,
+          account_holder_received: selectedPaymentMethod?.account_holder || "",
           proof_url: proofUrl,
           reference_no: referenceNo,
           method: "bank_transfer",
@@ -414,11 +435,13 @@ const Home = () => {
       });
 
       setTopupSuccess(true);
+      // Reset form but preserve sender_name
+      const currentSenderName = topupForm.sender_name;
       setTopupForm({
         amount: "",
         sender_bank: "",
         sender_account: "",
-        sender_name: "",
+        sender_name: currentSenderName, // Preserve the sender name
         destination_account: "",
         proof_url: null,
       });
@@ -974,6 +997,7 @@ const Home = () => {
     { value: "booking", label: "Book Vehicle" },
     { value: "topup", label: "Topup" },
     { value: "topup-history", label: "Topup History" },
+    { value: "transaction-history", label: "Riwayat Transaksi" },
     { value: "history", label: "Booking History" },
     { value: "payments", label: "Payments" },
     { value: "profile", label: "Profile" },
@@ -1078,6 +1102,16 @@ const Home = () => {
             >
               <Clock className="mr-2 h-4 w-4" />
               {getTranslation("topupHistory", language)}
+            </Button>
+            <Button
+              variant={
+                activeTab === "transaction-history" ? "default" : "ghost"
+              }
+              className="w-full justify-start"
+              onClick={() => setActiveTab("transaction-history")}
+            >
+              <DollarSign className="mr-2 h-4 w-4" />
+              Riwayat Transaksi
             </Button>
             <Button
               variant={activeTab === "history" ? "default" : "ghost"}
@@ -1337,6 +1371,13 @@ const Home = () => {
                 </TabsContent>
 
                 <TabsContent
+                  value="transaction-history"
+                  className="relative z-0 bg-white min-h-[240px]"
+                >
+                  <TransactionHistory userId={user?.id} />
+                </TabsContent>
+
+                <TabsContent
                   value="topup"
                   className="relative z-0 bg-white min-h-[240px]"
                 >
@@ -1503,7 +1544,7 @@ const Home = () => {
                             <Input
                               id="senderName"
                               type="text"
-                              placeholder="Masukkan nama pemegang rekening"
+                              placeholder=""
                               value={topupForm.sender_name}
                               onChange={(e) =>
                                 handleTopupInputChange(
@@ -1800,6 +1841,19 @@ const Home = () => {
                   >
                     <Clock className="mr-2 h-4 w-4" />
                     {getTranslation("topupHistory", language)}
+                  </Button>
+                  <Button
+                    variant={
+                      activeTab === "transaction-history" ? "default" : "ghost"
+                    }
+                    className="w-full justify-start"
+                    onClick={() => {
+                      setActiveTab("transaction-history");
+                      setShowNotifications(false);
+                    }}
+                  >
+                    <DollarSign className="mr-2 h-4 w-4" />
+                    Riwayat Transaksi
                   </Button>
                   <Button
                     variant={activeTab === "history" ? "default" : "ghost"}

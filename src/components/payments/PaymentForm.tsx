@@ -94,7 +94,7 @@ const PaymentForm = () => {
   const [vehicle, setVehicle] = useState<Vehicle | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [paymentMethod, setPaymentMethod] = useState("cash");
+  const [paymentMethod, setPaymentMethod] = useState("ewallet");
   const [selectedBank, setSelectedBank] = useState("bca");
   const [isPaymentSuccess, setIsPaymentSuccess] = useState(false);
   const [paymentAmount, setPaymentAmount] = useState<number | "">("");
@@ -340,8 +340,77 @@ const PaymentForm = () => {
       // Update the fully paid status
       setIsBookingFullyPaid(isNowFullyPaid);
 
-      // Update driver status to 'standby' after successful payment
-      if (booking.driver_id) {
+      // Update driver saldo and status when using Saldo/E-Wallet payment method
+      if (booking.driver_id && paymentMethod === "ewallet") {
+        try {
+          console.log(
+            "Processing Saldo/E-Wallet payment for driver:",
+            booking.driver_id,
+          );
+
+          // Get current driver saldo
+          const { data: driverData, error: driverFetchError } = await supabase
+            .from("drivers")
+            .select("saldo, name")
+            .eq("id", booking.driver_id)
+            .single();
+
+          if (driverFetchError) {
+            console.error("Error fetching driver data:", driverFetchError);
+            throw new Error("Failed to fetch driver data");
+          }
+
+          const currentDriverSaldo = driverData?.saldo || 0;
+          const newDriverSaldo = currentDriverSaldo + paymentAmountToProcess;
+
+          // Update driver saldo and status
+          const { error: driverUpdateError } = await supabase
+            .from("drivers")
+            .update({
+              saldo: newDriverSaldo,
+              driver_status: "standby",
+            })
+            .eq("id", booking.driver_id);
+
+          if (driverUpdateError) {
+            console.error(
+              "Error updating driver saldo and status:",
+              driverUpdateError,
+            );
+            throw new Error("Failed to update driver saldo");
+          }
+
+          console.log(
+            `Driver saldo updated: ${currentDriverSaldo} -> ${newDriverSaldo}`,
+          );
+
+          // Create histori_transaksi record
+          const historiTransaksiData = {
+            kode_booking: booking.code_booking || booking.id,
+            nominal: paymentAmountToProcess,
+            saldo_akhir: newDriverSaldo,
+            keterangan: `Pembayaran Sewa Kendaraan ${vehicle.make} - ${paymentMethod}`,
+            trans_date: new Date().toISOString().split("T")[0],
+            user_id: booking.driver_id,
+            jenis_transaksi: "Sewa Kendaraan Driver",
+          };
+
+          const { error: historiError } = await supabase
+            .from("histori_transaksi")
+            .insert(historiTransaksiData);
+
+          if (historiError) {
+            console.error("Error creating histori_transaksi:", historiError);
+            // Don't fail the payment if history creation fails, just log the error
+          } else {
+            console.log("Transaction history created successfully");
+          }
+        } catch (error) {
+          console.error("Error in Saldo/E-Wallet payment processing:", error);
+          // Don't fail the payment if driver update fails, just log the error
+        }
+      } else if (booking.driver_id) {
+        // For non-ewallet payments, just update driver status
         try {
           console.log(
             "Updating driver status to 'standby' for driver:",
@@ -599,14 +668,31 @@ const PaymentForm = () => {
                   className="h-full w-full object-cover"
                 />
               </div>
+
               <div>
                 <h3 className="font-medium">{vehicle.name}</h3>
-                <p className="text-sm text-muted-foreground">{vehicle.type}</p>
-                <div className="flex items-center gap-2 mt-1">
+                <p className="text-sm text-muted-foreground">
+                  Type: <span className="font-medium">{vehicle.type}</span>
+                </p>
+                <p className="text-sm text-muted-foreground">
+                  Make: <span className="font-medium">{vehicle.make}</span> |
+                  Model: <span className="font-medium">{vehicle.model}</span>
+                </p>
+
+                <div className="flex items-center gap-2 mt-1 flex-wrap">
                   <Badge variant="outline">
+                    Start Date:{" "}
                     {new Date(booking.booking_date).toLocaleDateString()}
                   </Badge>
-                  <Badge variant="outline">{booking.start_time}</Badge>
+                  <Badge variant="outline">
+                    End Date: {new Date(booking.end_date).toLocaleDateString()}
+                  </Badge>
+                  <Badge variant="outline">
+                    Start Time: {booking.start_time}
+                  </Badge>
+                  <Badge variant="outline">
+                    Return Time: {booking.return_time}
+                  </Badge>
                 </div>
               </div>
             </div>
@@ -622,16 +708,8 @@ const PaymentForm = () => {
                 className="flex flex-col space-y-1"
               >
                 <div className="flex items-center space-x-2">
-                  <RadioGroupItem value="cash" id="cash" />
-                  <Label htmlFor="cash">Cash</Label>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <RadioGroupItem value="transfer" id="transfer" />
-                  <Label htmlFor="transfer">Bank Transfer</Label>
-                </div>
-                <div className="flex items-center space-x-2">
                   <RadioGroupItem value="ewallet" id="ewallet" />
-                  <Label htmlFor="ewallet">E-Wallet</Label>
+                  <Label htmlFor="ewallet">Saldo/E-Wallet</Label>
                 </div>
               </RadioGroup>
             </div>

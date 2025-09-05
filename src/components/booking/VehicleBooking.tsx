@@ -38,6 +38,17 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Calendar } from "@/components/ui/calendar";
 import {
@@ -80,9 +91,12 @@ const VehicleBooking = ({
   const [cancelError, setCancelError] = useState(null);
   const [hasActiveBooking, setHasActiveBooking] = useState(false);
   const [activeBooking, setActiveBooking] = useState(null);
+  const [showCancelDialog, setShowCancelDialog] = useState(false);
+  const [cancellationReason, setCancellationReason] = useState("");
 
   const [availableDrivers, setAvailableDrivers] = useState([]);
   const [selectedDriver, setSelectedDriver] = useState(null);
+  const [paymentMethod, setPaymentMethod] = useState("Saldo"); // default Cash
 
   const [pickupDate, setPickupDate] = useState(tomorrow);
   const [returnDate, setReturnDate] = useState(tomorrow);
@@ -91,6 +105,8 @@ const VehicleBooking = ({
   const [pickupTime, setPickupTime] = useState("08:00");
   const [returnTime, setReturnTime] = useState("08:00");
   const [driverOption, setDriverOption] = useState("self");
+  const [timeValidationError, setTimeValidationError] = useState("");
+  const [isTimeValid, setIsTimeValid] = useState(true);
 
   const calculateRentalDuration = () => {
     if (!pickupDate || !returnDate) return 1;
@@ -116,6 +132,23 @@ const VehicleBooking = ({
       setInsufficientFunds(userSaldo < calculatedTotal);
     }
   }, [selectedVehicle, rentalDuration, driverOption, userSaldo, driverFee]);
+
+  // Validate pickup and return times
+  useEffect(() => {
+    if (pickupTime && returnTime) {
+      if (pickupTime !== returnTime) {
+        setTimeValidationError(
+          language === "id"
+            ? "Jam tidak sesuai, silahkan sesuaikan kembali"
+            : "Time mismatch, please adjust accordingly",
+        );
+        setIsTimeValid(false);
+      } else {
+        setTimeValidationError("");
+        setIsTimeValid(true);
+      }
+    }
+  }, [pickupTime, returnTime, language]);
 
   // Fetch driver saldo from drivers table
   useEffect(() => {
@@ -217,6 +250,14 @@ const VehicleBooking = ({
     fetchVehicles();
     fetchDrivers();
   }, [typeFilter]);
+
+  // Function to generate booking code
+  const generateBookingCode = () => {
+    const now = new Date();
+    const dateTime = now.toISOString().slice(0, 19).replace(/[-:T]/g, "");
+    const random = Math.random().toString(36).substring(2, 8).toUpperCase();
+    return `SKD-${dateTime}-${random}`;
+  };
 
   const handleBookingSubmit = async () => {
     if (!selectedVehicle) return;
@@ -349,6 +390,9 @@ const VehicleBooking = ({
         driverName = "Error Getting Driver Name";
       }
 
+      // Generate booking code
+      const bookingCode = generateBookingCode();
+
       // Create booking data with only valid bookings table columns
       const bookingData = {
         vehicle_id: selectedVehicle.id,
@@ -369,7 +413,7 @@ const VehicleBooking = ({
         duration: calculateRentalDuration(),
         status: "pending",
         payment_status: "unpaid",
-        payment_method: "Cash",
+        payment_method: paymentMethod,
         total_amount: calculatedTotalAmount,
         paid_amount: 0,
         remaining_payments: calculatedTotalAmount,
@@ -378,8 +422,8 @@ const VehicleBooking = ({
         user_id: user.id,
         // ===== DRIVERS_ID RE-ENABLED =====
         driver_id: driverId, // Re-enabled to ensure driver_id is populated
-        //  driver_name: driverName,
-        //   name: driverName,
+        name: driverName,
+        code_booking: bookingCode, // Add the generated booking code
       };
       console.log("returnDate:", returnDate);
       console.log("Booking data to be inserted:", bookingData);
@@ -389,6 +433,7 @@ const VehicleBooking = ({
       // Validate that we don't have any invalid column names
       const validColumns = [
         "vehicle_id",
+        "code_booking",
         "driver_option",
         "vehicle_type",
         "vehicle_name",
@@ -410,7 +455,7 @@ const VehicleBooking = ({
         "end_date",
         "user_id",
         "driver_id",
-        // "name",
+        "name",
       ];
 
       const invalidColumns = Object.keys(bookingData).filter(
@@ -452,12 +497,17 @@ const VehicleBooking = ({
 
       const { error } = await supabase
         .from("bookings")
-        .update({ status: "cancelled" })
+        .update({
+          status: "cancelled",
+          notes_driver: cancellationReason,
+        })
         .eq("id", bookingId);
 
       if (error) throw error;
 
       setIsDialogOpen(false);
+      setShowCancelDialog(false);
+      setCancellationReason("");
       resetBookingForm();
       navigate("/booking-history");
     } catch (error) {
@@ -470,6 +520,19 @@ const VehicleBooking = ({
     } finally {
       setIsCancelling(false);
     }
+  };
+
+  const handleCancelClick = () => {
+    setShowCancelDialog(true);
+  };
+
+  const handleConfirmCancel = () => {
+    handleCancelBooking(bookingId);
+  };
+
+  const handleCancelDialogClose = () => {
+    setShowCancelDialog(false);
+    setCancellationReason("");
   };
 
   const handleGoBack = () => {
@@ -803,8 +866,8 @@ const VehicleBooking = ({
                         <Input
                           id="start_time"
                           type="time"
-                          value={startTime}
-                          onChange={(e) => setStartTime(e.target.value)}
+                          value={pickupTime}
+                          onChange={(e) => setPickupTime(e.target.value)}
                           min="06:00"
                           max="22:00"
                           className="pl-10"
@@ -835,7 +898,7 @@ const VehicleBooking = ({
                   </div>
                 </div>
 
-                <div className="grid gap-2">
+                {/*  <div className="grid gap-2">
                   <Label>
                     {language === "id" ? "Opsi Pengemudi" : "Driver Option"}
                   </Label>
@@ -852,7 +915,7 @@ const VehicleBooking = ({
                         {language === "id" ? "Mengemudi sendiri" : "Self-drive"}
                       </Label>
                     </div>
-                    <div className="flex items-center space-x-2 border rounded-md p-4 cursor-pointer hover:bg-slate-50">
+                      <div className="flex items-center space-x-2 border rounded-md p-4 cursor-pointer hover:bg-slate-50">
                       <RadioGroupItem value="with-driver" id="with-driver" />
                       <Label htmlFor="with-driver" className="cursor-pointer">
                         {language === "id"
@@ -900,7 +963,7 @@ const VehicleBooking = ({
                         </div>
                       )}
                   </RadioGroup>
-                </div>
+                </div>*/}
 
                 <div className="bg-slate-50 p-4 rounded-lg">
                   <div className="flex justify-between mb-2">
@@ -968,6 +1031,11 @@ const VehicleBooking = ({
                       ? `Durasi sewa: ${rentalDuration} hari (${format(pickupDate, "dd MMM")} - ${format(returnDate, "dd MMM")})`
                       : `Rental duration: ${rentalDuration} days (${format(pickupDate, "MMM dd")} - ${format(returnDate, "MMM dd")})`}
                   </div>
+                  {timeValidationError && (
+                    <div className="text-red-500 text-sm mt-2 p-2 bg-red-50 rounded-md border border-red-200">
+                      {timeValidationError}
+                    </div>
+                  )}
                 </div>
               </div>
               <DialogFooter className="flex justify-between sm:justify-between gap-4">
@@ -981,18 +1049,24 @@ const VehicleBooking = ({
                 </Button>
                 <Button
                   onClick={handleBookingSubmit}
-                  disabled={insufficientFunds}
+                  disabled={insufficientFunds || !isTimeValid}
                   className={
-                    insufficientFunds ? "opacity-50 cursor-not-allowed" : ""
+                    insufficientFunds || !isTimeValid
+                      ? "opacity-50 cursor-not-allowed"
+                      : ""
                   }
                 >
                   {insufficientFunds
                     ? language === "id"
                       ? "Saldo Tidak Cukup"
                       : "Insufficient Balance"
-                    : language === "id"
-                      ? "Selanjutnya"
-                      : "Next"}
+                    : !isTimeValid
+                      ? language === "id"
+                        ? "Jam Tidak Sesuai"
+                        : "Time Mismatch"
+                      : language === "id"
+                        ? "Pesan Sekarang"
+                        : "Book Now"}
                 </Button>
               </DialogFooter>
             </>
@@ -1018,17 +1092,19 @@ const VehicleBooking = ({
                       ? "Lanjutkan ke Pembayaran"
                       : "Proceed to Payment"}
                   </Button>
+                  {/*
                   <Button
                     onClick={() => navigate("/booking-history")}
                     variant="outline"
                   >
                     {language === "id"
-                      ? "Lihat Riwayat Pemesanan"
+                      ? "Lihat Riwayat Pemesanan1"
                       : "View Booking History"}
                   </Button>
+                  */}
                 </div>
                 <Button
-                  onClick={() => handleCancelBooking(bookingId)}
+                  onClick={handleCancelClick}
                   variant="destructive"
                   disabled={isCancelling}
                   className="mt-2"
@@ -1053,6 +1129,65 @@ const VehicleBooking = ({
           )}
         </DialogContent>
       </Dialog>
+
+      {/* Cancellation Confirmation Dialog */}
+      <AlertDialog open={showCancelDialog} onOpenChange={setShowCancelDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {language === "id"
+                ? "Konfirmasi Pembatalan"
+                : "Confirm Cancellation"}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {language === "id"
+                ? "Apakah pesanan akan dibatalkan?"
+                : "Are you sure you want to cancel this booking?"}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid gap-2">
+              <Label htmlFor="cancellation-reason">
+                {language === "id"
+                  ? "Keterangan Pembatalan"
+                  : "Cancellation Reason"}
+              </Label>
+              <Textarea
+                id="cancellation-reason"
+                placeholder={
+                  language === "id"
+                    ? "Masukkan alasan pembatalan..."
+                    : "Enter cancellation reason..."
+                }
+                value={cancellationReason}
+                onChange={(e) => setCancellationReason(e.target.value)}
+                className="min-h-[100px]"
+              />
+            </div>
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={handleCancelDialogClose}>
+              {language === "id" ? "Batal" : "Cancel"}
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleConfirmCancel}
+              disabled={isCancelling || !cancellationReason.trim()}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {isCancelling
+                ? language === "id"
+                  ? "Membatalkan..."
+                  : "Cancelling..."
+                : language === "id"
+                  ? "Ya, Batalkan"
+                  : "Yes, Cancel"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+          {cancelError && (
+            <p className="text-destructive text-sm mt-2">{cancelError}</p>
+          )}
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };

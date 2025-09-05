@@ -39,6 +39,16 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import { Textarea } from "@/components/ui/textarea";
 import { format, isValid } from "date-fns";
 import dayjs from "dayjs";
 import {
@@ -61,12 +71,15 @@ interface Booking {
   booking_date: Date;
   start_time: string;
   duration: number;
-  status: "pending" | "approved" | "rejected";
+  status: "pending" | "approved" | "rejected" | "cancelled";
   payment_method: string;
   total_amount: number;
   paid_amount?: number;
   remaining_payments?: number;
   user_id?: string;
+  notes_driver?: string;
+  license_plate?: string;
+  vehicle_make?: string;
 }
 
 interface Payment {
@@ -116,6 +129,8 @@ const BookingHistory = ({ userId, driverSaldo }: BookingHistoryProps = {}) => {
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [userSaldo, setUserSaldo] = useState<number>(0);
+  const [cancelDialogOpen, setCancelDialogOpen] = useState<string | null>(null);
+  const [cancellationReason, setCancellationReason] = useState<string>("");
 
   // Bookings data - fetched from Supabase
   const [mockBookings, setMockBookings] = useState<Booking[]>([]);
@@ -170,6 +185,8 @@ const BookingHistory = ({ userId, driverSaldo }: BookingHistoryProps = {}) => {
           .select(
             `
             id,
+            code_booking,
+            notes_driver,
             license_plate,
             plate_number,
             make,
@@ -207,6 +224,7 @@ const BookingHistory = ({ userId, driverSaldo }: BookingHistoryProps = {}) => {
               .select(
                 `
               id,
+              notes_driver,
               license_plate,
               plate_number,
               make,
@@ -274,6 +292,7 @@ const BookingHistory = ({ userId, driverSaldo }: BookingHistoryProps = {}) => {
                     .select(
                       `
                     id,
+                    notes_driver,
                     license_plate,
                     plate_number,
                     make,
@@ -317,6 +336,7 @@ const BookingHistory = ({ userId, driverSaldo }: BookingHistoryProps = {}) => {
           // Transform the data to match our Booking interface
           const formattedBookings = bookingsData.map((booking) => ({
             id: booking.id,
+            code_booking: booking.code_booking,
             vehicle_name: booking.model || "Unknown Vehicle",
             vehicle_type: booking.vehicle_type || "Unknown Type",
             booking_date: new Date(booking.booking_date),
@@ -331,6 +351,7 @@ const BookingHistory = ({ userId, driverSaldo }: BookingHistoryProps = {}) => {
             license_plate:
               booking.license_plate || booking.plate_number || "Unknown Plate",
             vehicle_make: booking.make || "Unknown Make",
+            notes_driver: booking.notes_driver || null,
           }));
 
           setMockBookings(formattedBookings);
@@ -524,7 +545,7 @@ const BookingHistory = ({ userId, driverSaldo }: BookingHistoryProps = {}) => {
         const { data: userBookings } = await supabase
           .from("bookings")
           .select(
-            "id, user_id, customer_id, vehicle_name, total_amount, paid_amount, remaining_payments",
+            "id, user_id, customer_id, vehicle_name, total_amount, paid_amount, remaining_payments, notes_driver",
           )
           .or(`user_id.eq.${currentUserId},customer_id.eq.${currentUserId}`);
 
@@ -829,6 +850,48 @@ const BookingHistory = ({ userId, driverSaldo }: BookingHistoryProps = {}) => {
   // Helper function to check if booking can be paid
   const canBookingBePaid = (booking: Booking): boolean => {
     return getRemainingPayment(booking) > 0;
+  };
+
+  // Handle cancel booking with confirmation dialog
+  const handleCancelBooking = async (bookingId: string) => {
+    if (!cancellationReason.trim()) {
+      alert("Silakan isi keterangan pembatalan");
+      return;
+    }
+
+    try {
+      const { error } = await supabase
+        .from("bookings")
+        .update({
+          status: "cancelled",
+          notes_driver: cancellationReason.trim(),
+        })
+        .eq("id", bookingId);
+
+      if (error) {
+        alert("Gagal membatalkan pemesanan: " + error.message);
+      } else {
+        alert("Pemesanan berhasil dibatalkan");
+        // Update the booking status in the UI
+        setMockBookings((prevBookings) =>
+          prevBookings.map((b) =>
+            b.id === bookingId
+              ? {
+                  ...b,
+                  status: "cancelled",
+                  notes_driver: cancellationReason.trim(),
+                }
+              : b,
+          ),
+        );
+        // Close dialog and reset form
+        setCancelDialogOpen(null);
+        setCancellationReason("");
+      }
+    } catch (error) {
+      console.error("Error cancelling booking:", error);
+      alert("Terjadi kesalahan saat membatalkan pemesanan");
+    }
   };
 
   // Helper function to get payment status badge variant
@@ -1212,74 +1275,119 @@ const BookingHistory = ({ userId, driverSaldo }: BookingHistoryProps = {}) => {
                                           <p className="text-sm text-muted-foreground">
                                             ID Pemesanan
                                           </p>
-                                          <p>#{booking.id}</p>
+                                          <p>{booking.code_booking}</p>
+                                        </div>
+                                        <div>
+                                          <p className="text-sm text-muted-foreground">
+                                            Keterangan Pembatalan
+                                          </p>
+                                          <p>
+                                            {booking.notes_driver ||
+                                              "Tidak ada keterangan"}
+                                          </p>
                                         </div>
                                       </div>
                                       <div className="mt-4 flex gap-2">
                                         {(booking.status === "pending" ||
                                           booking.status === "approved") && (
-                                          <Button
-                                            variant="outline"
-                                            size="sm"
-                                            onClick={() => {
-                                              // Handle cancel booking
-                                              if (
-                                                confirm(
-                                                  "Apakah Anda yakin ingin membatalkan pemesanan ini?",
-                                                )
-                                              ) {
-                                                supabase
-                                                  .from("bookings")
-                                                  .update({
-                                                    status: "cancelled",
-                                                  })
-                                                  .eq("id", booking.id)
-                                                  .then(({ error }) => {
-                                                    if (error) {
-                                                      alert(
-                                                        "Gagal membatalkan pemesanan: " +
-                                                          error.message,
-                                                      );
-                                                    } else {
-                                                      alert(
-                                                        "Pemesanan berhasil dibatalkan",
-                                                      );
-                                                      // Update the booking status in the UI
-                                                      setMockBookings(
-                                                        (prevBookings) =>
-                                                          prevBookings.map(
-                                                            (b) =>
-                                                              b.id ===
-                                                              booking.id
-                                                                ? {
-                                                                    ...b,
-                                                                    status:
-                                                                      "cancelled",
-                                                                  }
-                                                                : b,
-                                                          ),
-                                                      );
-                                                    }
-                                                  });
+                                          <Dialog
+                                            open={
+                                              cancelDialogOpen === booking.id
+                                            }
+                                            onOpenChange={(open) => {
+                                              if (open) {
+                                                setCancelDialogOpen(booking.id);
+                                                setCancellationReason("");
+                                              } else {
+                                                setCancelDialogOpen(null);
+                                                setCancellationReason("");
                                               }
                                             }}
                                           >
-                                            Batalkan Pemesanan
-                                          </Button>
+                                            <DialogTrigger asChild>
+                                              <Button
+                                                variant="outline"
+                                                size="sm"
+                                              >
+                                                Batalkan Pemesanan
+                                              </Button>
+                                            </DialogTrigger>
+                                            <DialogContent className="sm:max-w-[425px]">
+                                              <DialogHeader>
+                                                <DialogTitle>
+                                                  Batalkan Pemesanan
+                                                </DialogTitle>
+                                                <DialogDescription>
+                                                  Apakah Anda yakin ingin
+                                                  membatalkan pemesanan ini?
+                                                </DialogDescription>
+                                              </DialogHeader>
+                                              <div className="grid gap-4 py-4">
+                                                <div className="grid gap-2">
+                                                  <label
+                                                    htmlFor="cancellation-reason"
+                                                    className="text-sm font-medium"
+                                                  >
+                                                    Keterangan Pembatalan *
+                                                  </label>
+                                                  <Textarea
+                                                    id="cancellation-reason"
+                                                    placeholder="Masukkan alasan pembatalan..."
+                                                    value={cancellationReason}
+                                                    onChange={(e) =>
+                                                      setCancellationReason(
+                                                        e.target.value,
+                                                      )
+                                                    }
+                                                    className="min-h-[100px]"
+                                                  />
+                                                </div>
+                                              </div>
+                                              <DialogFooter>
+                                                <Button
+                                                  variant="outline"
+                                                  onClick={() => {
+                                                    setCancelDialogOpen(null);
+                                                    setCancellationReason("");
+                                                  }}
+                                                >
+                                                  Batal
+                                                </Button>
+                                                {cancellationReason.trim() && (
+                                                  <Button
+                                                    variant="destructive"
+                                                    onClick={() =>
+                                                      handleCancelBooking(
+                                                        booking.id,
+                                                      )
+                                                    }
+                                                  >
+                                                    Batalkan Pesanan
+                                                  </Button>
+                                                )}
+                                              </DialogFooter>
+                                            </DialogContent>
+                                          </Dialog>
                                         )}
-                                        {canBookingBePaid(booking) && (
-                                          <Button
-                                            size="sm"
-                                            onClick={() =>
-                                              navigate(`/payment/${booking.id}`)
-                                            }
-                                          >
-                                            Bayar
-                                          </Button>
+                                        {booking.status !== "cancelled" && (
+                                          <>
+                                            {canBookingBePaid(booking) && (
+                                              <Button
+                                                size="sm"
+                                                onClick={() =>
+                                                  navigate(
+                                                    `/payment/${booking.id}`,
+                                                  )
+                                                }
+                                              >
+                                                Bayar
+                                              </Button>
+                                            )}
+                                            <Button size="sm" variant="outline">
+                                              Hubungi Dukungan
+                                            </Button>
+                                          </>
                                         )}
-                                        <Button size="sm" variant="outline">
-                                          Hubungi Dukungan
-                                        </Button>
                                       </div>
                                     </div>
                                   </TableCell>
@@ -1436,70 +1544,106 @@ const BookingHistory = ({ userId, driverSaldo }: BookingHistoryProps = {}) => {
                                   <div className="flex gap-2 mt-3">
                                     {(booking.status === "pending" ||
                                       booking.status === "approved") && (
-                                      <Button
-                                        variant="outline"
-                                        size="sm"
-                                        className="flex-1"
-                                        onClick={() => {
-                                          // Handle cancel booking
-                                          if (
-                                            confirm(
-                                              "Apakah Anda yakin ingin membatalkan pemesanan ini?",
-                                            )
-                                          ) {
-                                            supabase
-                                              .from("bookings")
-                                              .update({ status: "cancelled" })
-                                              .eq("id", booking.id)
-                                              .then(({ error }) => {
-                                                if (error) {
-                                                  alert(
-                                                    "Gagal membatalkan pemesanan: " +
-                                                      error.message,
-                                                  );
-                                                } else {
-                                                  alert(
-                                                    "Pemesanan berhasil dibatalkan",
-                                                  );
-                                                  // Update the booking status in the UI
-                                                  setMockBookings(
-                                                    (prevBookings) =>
-                                                      prevBookings.map((b) =>
-                                                        b.id === booking.id
-                                                          ? {
-                                                              ...b,
-                                                              status:
-                                                                "cancelled",
-                                                            }
-                                                          : b,
-                                                      ),
-                                                  );
-                                                }
-                                              });
+                                      <Dialog
+                                        open={cancelDialogOpen === booking.id}
+                                        onOpenChange={(open) => {
+                                          if (open) {
+                                            setCancelDialogOpen(booking.id);
+                                            setCancellationReason("");
+                                          } else {
+                                            setCancelDialogOpen(null);
+                                            setCancellationReason("");
                                           }
                                         }}
                                       >
-                                        Batalkan
-                                      </Button>
+                                        <DialogTrigger asChild>
+                                          <Button
+                                            variant="outline"
+                                            size="sm"
+                                            className="flex-1"
+                                          >
+                                            Batalkan
+                                          </Button>
+                                        </DialogTrigger>
+                                        <DialogContent className="sm:max-w-[425px]">
+                                          <DialogHeader>
+                                            <DialogTitle>
+                                              Batalkan Pemesanan
+                                            </DialogTitle>
+                                            <DialogDescription>
+                                              Apakah Anda yakin ingin
+                                              membatalkan pemesanan ini?
+                                            </DialogDescription>
+                                          </DialogHeader>
+                                          <div className="grid gap-4 py-4">
+                                            <div className="grid gap-2">
+                                              <label
+                                                htmlFor="cancellation-reason-mobile"
+                                                className="text-sm font-medium"
+                                              >
+                                                Keterangan Pembatalan *
+                                              </label>
+                                              <Textarea
+                                                id="cancellation-reason-mobile"
+                                                placeholder="Masukkan alasan pembatalan..."
+                                                value={cancellationReason}
+                                                onChange={(e) =>
+                                                  setCancellationReason(
+                                                    e.target.value,
+                                                  )
+                                                }
+                                                className="min-h-[100px]"
+                                              />
+                                            </div>
+                                          </div>
+                                          <DialogFooter>
+                                            <Button
+                                              variant="outline"
+                                              onClick={() => {
+                                                setCancelDialogOpen(null);
+                                                setCancellationReason("");
+                                              }}
+                                            >
+                                              Batal
+                                            </Button>
+                                            {cancellationReason.trim() && (
+                                              <Button
+                                                variant="destructive"
+                                                onClick={() =>
+                                                  handleCancelBooking(
+                                                    booking.id,
+                                                  )
+                                                }
+                                              >
+                                                Batalkan Pesanan
+                                              </Button>
+                                            )}
+                                          </DialogFooter>
+                                        </DialogContent>
+                                      </Dialog>
                                     )}
-                                    {canBookingBePaid(booking) && (
-                                      <Button
-                                        size="sm"
-                                        className="flex-1"
-                                        onClick={() =>
-                                          navigate(`/payment/${booking.id}`)
-                                        }
-                                      >
-                                        Bayar
-                                      </Button>
+                                    {booking.status !== "cancelled" && (
+                                      <>
+                                        {canBookingBePaid(booking) && (
+                                          <Button
+                                            size="sm"
+                                            className="flex-1"
+                                            onClick={() =>
+                                              navigate(`/payment/${booking.id}`)
+                                            }
+                                          >
+                                            Bayar
+                                          </Button>
+                                        )}
+                                        <Button
+                                          size="sm"
+                                          className="flex-1"
+                                          variant="outline"
+                                        >
+                                          Hubungi Dukungan
+                                        </Button>
+                                      </>
                                     )}
-                                    <Button
-                                      size="sm"
-                                      className="flex-1"
-                                      variant="outline"
-                                    >
-                                      Hubungi Dukungan
-                                    </Button>
                                   </div>
                                 </div>
                               )}

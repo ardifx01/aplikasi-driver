@@ -41,6 +41,7 @@ interface TopupRequest {
   sender_account: string;
   sender_name: string;
   destination_account: string;
+  account_holder_received?: string;
   proof_url?: string;
   reference_no: string;
   method: string;
@@ -236,15 +237,26 @@ const TopupHistory = ({ userId }: TopupHistoryProps = {}) => {
     }
   };
 
-  const getBankAccountInfo = (destinationAccount: string) => {
+  const getBankAccountInfo = (
+    destinationAccount: string,
+    accountHolder?: string,
+  ) => {
+    let bankInfo = "";
     switch (destinationAccount) {
       case "1640006707220":
-        return "Mandiri - 1640006707220";
+        bankInfo = "Mandiri - 1640006707220";
+        break;
       case "5440542222":
-        return "BCA - 5440542222";
+        bankInfo = "BCA - 5440542222";
+        break;
       default:
-        return destinationAccount;
+        bankInfo = destinationAccount;
     }
+
+    if (accountHolder) {
+      return `${bankInfo} - ${accountHolder}`;
+    }
+    return bankInfo;
   };
 
   const totalRequests = topupRequests.length;
@@ -500,7 +512,8 @@ const TopupHistory = ({ userId }: TopupHistoryProps = {}) => {
                               <p className="text-sm text-gray-600">
                                 {getBankAccountInfo(
                                   request.destination_account,
-                                )}
+                                  request.account_holder_received,
+                                ) || "Belum ada bank"}
                               </p>
                             </div>
                           </div>
