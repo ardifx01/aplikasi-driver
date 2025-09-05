@@ -108,8 +108,8 @@ const VehicleBooking = ({
   const [selectedDriver, setSelectedDriver] = useState(null);
   const [paymentMethod, setPaymentMethod] = useState("Saldo"); // default Cash
 
-  const [pickupDate, setPickupDate] = useState(tomorrow);
-  const [returnDate, setReturnDate] = useState(tomorrow);
+  const [pickupDate, setPickupDate] = useState(null);
+  const [returnDate, setReturnDate] = useState(null);
   const [pickupDateOpen, setPickupDateOpen] = useState(false);
   const [returnDateOpen, setReturnDateOpen] = useState(false);
   const [pickupTime, setPickupTime] = useState("08:00");
@@ -125,6 +125,14 @@ const VehicleBooking = ({
     const diffTime = Math.abs(returnTime.getTime() - pickupTime.getTime());
     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
     return diffDays || 1;
+  };
+
+  // Calculate minimum return date (pickup date + 1 day)
+  const getMinReturnDate = () => {
+    if (!pickupDate) return null;
+    const minDate = new Date(pickupDate);
+    minDate.setDate(minDate.getDate() + 1);
+    return minDate;
   };
 
   const rentalDuration = calculateRentalDuration();
@@ -437,8 +445,12 @@ const VehicleBooking = ({
         total_amount: calculatedTotalAmount,
         paid_amount: 0,
         remaining_payments: calculatedTotalAmount,
-        start_date: formatDateLocal(pickupDate),
-        end_date: formatDateLocal(returnDate),
+        start_date: pickupDate
+          ? formatDateLocal(pickupDate)
+          : formatDateLocal(tomorrow),
+        end_date: returnDate
+          ? formatDateLocal(returnDate)
+          : formatDateLocal(tomorrow),
         user_id: user.id,
         // ===== DRIVERS_ID RE-ENABLED =====
         driver_id: driverId, // Re-enabled to ensure driver_id is populated
@@ -825,60 +837,67 @@ const VehicleBooking = ({
                             mode="single"
                             selected={pickupDate}
                             onSelect={(date) => {
-                              setPickupDate(date || tomorrow);
+                              if (date) {
+                                setPickupDate(date);
+                                // Auto-set return date to pickup date + 1 day
+                                const nextDay = new Date(date);
+                                nextDay.setDate(nextDay.getDate() + 1);
+                                setReturnDate(nextDay);
+                              }
                               setPickupDateOpen(false);
                             }}
+                            disabled={(date) => date < new Date()}
                             initialFocus
                           />
                         </PopoverContent>
                       </Popover>
                     </div>
 
-                    <div>
-                      <Label htmlFor="return-date" className="mb-2 block">
-                        {language === "id"
-                          ? "Tanggal Pengembalian"
-                          : "Return Date"}
-                      </Label>
-                      <Popover
-                        open={returnDateOpen}
-                        onOpenChange={setReturnDateOpen}
-                      >
-                        <PopoverTrigger asChild>
-                          <Button
-                            variant="outline"
-                            className="w-full justify-start text-left font-normal"
-                            id="return-date"
-                          >
-                            <CalendarIcon className="mr-2 h-4 w-4" />
-                            {returnDate
-                              ? format(returnDate, "MMMM dd, yyyy")
-                              : language === "id"
-                                ? "Pilih tanggal"
-                                : "Select date"}
-                          </Button>
-                        </PopoverTrigger>
-                        {returnDateOpen && (
+                    {pickupDate && (
+                      <div>
+                        <Label htmlFor="return-date" className="mb-2 block">
+                          {language === "id"
+                            ? "Tanggal Pengembalian"
+                            : "Return Date"}
+                        </Label>
+                        <Popover
+                          open={returnDateOpen}
+                          onOpenChange={setReturnDateOpen}
+                        >
+                          <PopoverTrigger asChild>
+                            <Button
+                              variant="outline"
+                              className="w-full justify-start text-left font-normal"
+                              id="return-date"
+                            >
+                              <CalendarIcon className="mr-2 h-4 w-4" />
+                              {returnDate
+                                ? format(returnDate, "MMMM dd, yyyy")
+                                : language === "id"
+                                  ? "Pilih tanggal"
+                                  : "Select date"}
+                            </Button>
+                          </PopoverTrigger>
                           <PopoverContent className="w-auto p-0" align="start">
                             <Calendar
                               mode="single"
                               selected={returnDate}
                               onSelect={(date) => {
-                                if (date && date >= pickupDate) {
+                                if (date) {
                                   setReturnDate(date);
                                   setReturnDateOpen(false);
-                                } else {
-                                  alert(
-                                    "Tanggal pengembalian tidak boleh lebih awal dari tanggal pengambilan.",
-                                  );
                                 }
+                              }}
+                              disabled={(date) => {
+                                const minDate = getMinReturnDate();
+                                return !minDate || date < minDate;
                               }}
                               initialFocus
                             />
                           </PopoverContent>
-                        )}
-                      </Popover>
-                    </div>
+                        </Popover>
+                      </div>
+                    )}
                   </div>
 
                   <div className="grid grid-cols-2 gap-4">
@@ -1052,11 +1071,13 @@ const VehicleBooking = ({
                       )}
                     </span>
                   </div>
-                  <div className="text-xs text-gray-500 mt-2">
-                    {language === "id"
-                      ? `Durasi sewa: ${rentalDuration} hari (${format(pickupDate, "dd MMM")} - ${format(returnDate, "dd MMM")})`
-                      : `Rental duration: ${rentalDuration} days (${format(pickupDate, "MMM dd")} - ${format(returnDate, "MMM dd")})`}
-                  </div>
+                  {pickupDate && returnDate && (
+                    <div className="text-xs text-gray-500 mt-2">
+                      {language === "id"
+                        ? `Durasi sewa: ${rentalDuration} hari (${format(pickupDate, "dd MMM")} - ${format(returnDate, "dd MMM")})`
+                        : `Rental duration: ${rentalDuration} days (${format(pickupDate, "MMM dd")} - ${format(returnDate, "MMM dd")})`}
+                    </div>
+                  )}
                   {timeValidationError && (
                     <div className="text-red-500 text-sm mt-2 p-2 bg-red-50 rounded-md border border-red-200">
                       {timeValidationError}
@@ -1075,9 +1096,17 @@ const VehicleBooking = ({
                 </Button>
                 <Button
                   onClick={handleBookingSubmit}
-                  disabled={insufficientFunds || !isTimeValid}
+                  disabled={
+                    insufficientFunds ||
+                    !isTimeValid ||
+                    !pickupDate ||
+                    !returnDate
+                  }
                   className={
-                    insufficientFunds || !isTimeValid
+                    insufficientFunds ||
+                    !isTimeValid ||
+                    !pickupDate ||
+                    !returnDate
                       ? "opacity-50 cursor-not-allowed"
                       : ""
                   }
