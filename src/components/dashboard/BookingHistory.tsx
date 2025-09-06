@@ -1203,10 +1203,10 @@ const BookingHistory = ({ userId, driverSaldo }: BookingHistoryProps = {}) => {
                                   {booking.vehicle_name}
                                 </TableCell>
                                 <TableCell>
-                                  {formatDate(
-                                    booking.booking_date,
-                                    "dd MMM yyyy",
-                                  )}
+                                  {dayjs(
+                                    booking.created_at,
+                                    "YYYY-MM-DD",
+                                  ).format("DD MMM YYYY")}
                                 </TableCell>
                                 <TableCell>{booking.start_time}</TableCell>
                                 <TableCell>{booking.duration} Hari</TableCell>
@@ -1295,7 +1295,7 @@ const BookingHistory = ({ userId, driverSaldo }: BookingHistoryProps = {}) => {
                                           {(() => {
                                             const endDate = dayjs(
                                               `${dayjs(booking.booking_date).format("YYYY-MM-DD")}T${booking.start_time}`,
-                                            ).add(booking.duration, "day");
+                                            ).add(booking.duration - 1, "day");
 
                                             return (
                                               <div key="end-date-display">

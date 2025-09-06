@@ -141,13 +141,15 @@ const VehicleBooking = ({
     : 0;
   const driverFee = 150000;
 
-  // Check if user has sufficient funds
+  // Check if user can make booking (balance can go negative up to -500,000)
   useEffect(() => {
     if (selectedVehicle) {
       const calculatedTotal =
         selectedVehicle.price * rentalDuration +
         (driverOption === "with-driver" ? driverFee * rentalDuration : 0);
-      setInsufficientFunds(userSaldo < calculatedTotal);
+      const balanceAfterBooking = userSaldo - calculatedTotal;
+      // Allow booking if balance after booking is above -500,000
+      setInsufficientFunds(balanceAfterBooking < -500000);
     }
   }, [selectedVehicle, rentalDuration, driverOption, userSaldo, driverFee]);
 
@@ -846,7 +848,11 @@ const VehicleBooking = ({
                               }
                               setPickupDateOpen(false);
                             }}
-                            disabled={(date) => date < new Date()}
+                            disabled={(date) => {
+                              const today = new Date();
+                              today.setHours(0, 0, 0, 0); // reset jam ke 00:00
+                              return date < today;
+                            }}
                             initialFocus
                           />
                         </PopoverContent>
@@ -1010,28 +1016,29 @@ const VehicleBooking = ({
                   </RadioGroup>
                 </div>*/}
 
-                <div className="bg-slate-50 p-4 rounded-lg">
+                <div className="bg-slate-50 p-4 rounded-lg border-2 border-white-500">
                   <div className="flex justify-between mb-2">
-                    <span>
+                    <span className="text-sm font-normal">
                       {language === "id"
                         ? "Biaya sewa kendaraan"
                         : "Vehicle rental fee"}
                     </span>
-                    <span>
+                    <span className="text-sm font-normal">
                       {selectedVehicle
                         ? formatCurrency(selectedVehicle.price, language)
                         : formatCurrency(0, language)}
                     </span>
                   </div>
                   <div className="flex justify-between mb-2">
-                    <span>
+                    <span className="text-sm font-normal">
                       {language === "id" ? "Saldo Anda" : "Your balance"}
                     </span>
                     <span
+                      className="text-sm font-normal"
                       className={
-                        userSaldo < totalPrice
-                          ? "text-red-500 font-bold"
-                          : "text-green-500 font-bold"
+                        userSaldo < 0
+                          ? "text-red-500 font-normal"
+                          : "text-green-500 font-normal"
                       }
                     >
                       {(() => {
@@ -1048,7 +1055,7 @@ const VehicleBooking = ({
                   </div>
                   {driverOption === "with-driver" && (
                     <div className="flex justify-between mb-2">
-                      <span>
+                      <span className="font-medium">
                         {language === "id" ? "Biaya pengemudi" : "Driver fee"}
                         {selectedDriver && (
                           <span className="text-xs text-gray-500 ml-1">
@@ -1056,12 +1063,18 @@ const VehicleBooking = ({
                           </span>
                         )}
                       </span>
-                      <span>{formatCurrency(driverFee, language)}</span>
+                      <span className="font-medium">
+                        {formatCurrency(driverFee, language)}
+                      </span>
                     </div>
                   )}
-                  <div className="flex justify-between font-bold pt-2 border-t mt-2">
-                    <span>Total</span>
-                    <span>
+                  <div className="flex justify-between font-bold pt-2 border-t mt-2 text-lg">
+                    <span className="text-sm font-normal">
+                      {language === "id"
+                        ? "Total Biaya Sewa"
+                        : "Total Rental Cost"}
+                    </span>
+                    <span className="text-sm font-bold">
                       {formatCurrency(
                         totalPrice +
                           (driverOption === "with-driver"
@@ -1071,6 +1084,73 @@ const VehicleBooking = ({
                       )}
                     </span>
                   </div>
+                  {/* Balance after booking calculation */}
+                  {(() => {
+                    const totalCost =
+                      totalPrice +
+                      (driverOption === "with-driver"
+                        ? driverFee * rentalDuration
+                        : 0);
+                    const balanceAfterBooking = userSaldo - totalCost;
+                    const isNegativeBalance = balanceAfterBooking < 0;
+                    const isOverLimit = balanceAfterBooking < -500000;
+
+                    return (
+                      <div
+                        className={`mt-3 p-3 rounded-md border-2 ${
+                          isOverLimit
+                            ? "bg-red-50 border-red-300"
+                            : isNegativeBalance
+                              ? "bg-yellow-50 border-yellow-300"
+                              : "bg-green-50 border-green-300"
+                        }`}
+                      >
+                        <div className="flex justify-between items-center mb-2">
+                          <span className="font-medium text-sm">
+                            {language === "id"
+                              ? "Saldo setelah pemesanan:"
+                              : "Balance after booking:"}
+                          </span>
+                          <span
+                            className={`font-bold ${
+                              isOverLimit
+                                ? "text-red-600"
+                                : isNegativeBalance
+                                  ? "text-yellow-600"
+                                  : "text-green-600"
+                            }`}
+                          >
+                            {formatCurrency(balanceAfterBooking, language)}
+                          </span>
+                        </div>
+
+                        {isOverLimit && (
+                          <div className="text-red-600 text-sm font-medium">
+                            {language === "id"
+                              ? "⚠️ Saldo tidak mencukupi. Batas maksimal minus Rp 500.000"
+                              : "⚠️ Insufficient balance. Maximum negative limit is Rp 500,000"}
+                          </div>
+                        )}
+
+                        {isNegativeBalance && !isOverLimit && (
+                          <div className="text-yellow-600 text-sm font-medium">
+                            {language === "id"
+                              ? "⚠️ Saldo akan minus setelah pemesanan"
+                              : "⚠️ Balance will be negative after booking"}
+                          </div>
+                        )}
+
+                        {!isNegativeBalance && (
+                          <div className="text-green-600 text-sm font-medium">
+                            {language === "id"
+                              ? "✅ Saldo mencukupi"
+                              : "✅ Sufficient balance"}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
+
                   {pickupDate && returnDate && (
                     <div className="text-xs text-gray-500 mt-2">
                       {language === "id"
@@ -1085,6 +1165,7 @@ const VehicleBooking = ({
                   )}
                 </div>
               </div>
+
               <DialogFooter className="flex justify-between sm:justify-between gap-4">
                 <Button
                   variant="outline"
