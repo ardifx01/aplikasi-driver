@@ -401,7 +401,7 @@ const Home = () => {
           user_id: sessionData.session.user.id,
           amount: parseFloat(topupForm.amount),
           bank_name: receivingBankName,
-          sender_bank: topupForm.sender_bank,
+          sender_bank: topupForm.sender_bank || "N/A", // Default value when bank selection is hidden
           sender_account: topupForm.sender_account,
           sender_name: topupForm.sender_name,
           destination_account: topupForm.destination_account,
@@ -441,7 +441,7 @@ const Home = () => {
         amount: "",
         sender_bank: "",
         sender_account: "",
-        sender_name: currentSenderName, // Preserve the sender name
+        //  sender_name: currentSenderName, // Preserve the sender name
         destination_account: "",
         proof_url: null,
       });
@@ -1474,46 +1474,50 @@ const Home = () => {
                             </p>
                           </div>
 
-                          {/* Sender Bank */}
-                          {/* <div className="space-y-2">
-                            <Label htmlFor="senderBank">Nama Bank *</Label>
-                            <Select
-                              value={topupForm.sender_bank}
-                              onValueChange={(value) =>
-                                handleTopupInputChange("sender_bank", value)
-                              }
-                              required
-                              disabled={isTopupProcessing}
-                            >
-                              <SelectTrigger>
-                                <SelectValue placeholder="Pilih Bank" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="BCA">BCA</SelectItem>
-                                <SelectItem value="Mandiri">
-                                  Bank Mandiri
-                                </SelectItem>
-                                <SelectItem value="BNI">BNI</SelectItem>
-                                <SelectItem value="BRI">BRI</SelectItem>
-                                <SelectItem value="CIMB Niaga">
-                                  CIMB Niaga
-                                </SelectItem>
-                                <SelectItem value="Bank Danamon">
-                                  Bank Danamon
-                                </SelectItem>
-                                <SelectItem value="Bank Permata">
-                                  Bank Permata
-                                </SelectItem>
-                                <SelectItem value="OCBC NISP">
-                                  OCBC NISP
-                                </SelectItem>
-                                <SelectItem value="Maybank">Maybank</SelectItem>
-                                <SelectItem value="Lainnya">
-                                  Bank Lainnya
-                                </SelectItem>
-                              </SelectContent>
-                            </Select>
-                          </div>*/}
+                          {/* Sender Bank - Temporarily Hidden */}
+                          {false && (
+                            <div className="space-y-2">
+                              <Label htmlFor="senderBank">Nama Bank *</Label>
+                              <Select
+                                value={topupForm.sender_bank}
+                                onValueChange={(value) =>
+                                  handleTopupInputChange("sender_bank", value)
+                                }
+                                required
+                                disabled={isTopupProcessing}
+                              >
+                                <SelectTrigger>
+                                  <SelectValue placeholder="Pilih Bank" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="BCA">BCA</SelectItem>
+                                  <SelectItem value="Mandiri">
+                                    Bank Mandiri
+                                  </SelectItem>
+                                  <SelectItem value="BNI">BNI</SelectItem>
+                                  <SelectItem value="BRI">BRI</SelectItem>
+                                  <SelectItem value="CIMB Niaga">
+                                    CIMB Niaga
+                                  </SelectItem>
+                                  <SelectItem value="Bank Danamon">
+                                    Bank Danamon
+                                  </SelectItem>
+                                  <SelectItem value="Bank Permata">
+                                    Bank Permata
+                                  </SelectItem>
+                                  <SelectItem value="OCBC NISP">
+                                    OCBC NISP
+                                  </SelectItem>
+                                  <SelectItem value="Maybank">
+                                    Maybank
+                                  </SelectItem>
+                                  <SelectItem value="Lainnya">
+                                    Bank Lainnya
+                                  </SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </div>
+                          )}
 
                           {/* Sender Account Number */}
                           <div className="space-y-2">
@@ -1630,7 +1634,6 @@ const Home = () => {
                               isSubmittingTopup ||
                               isTopupProcessing ||
                               !topupForm.amount ||
-                              !topupForm.sender_bank ||
                               !topupForm.sender_account ||
                               !topupForm.sender_name ||
                               !topupForm.destination_account ||
