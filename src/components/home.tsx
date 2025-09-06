@@ -1475,7 +1475,7 @@ const Home = () => {
                           </div>
 
                           {/* Sender Bank */}
-                          <div className="space-y-2">
+                          {/* <div className="space-y-2">
                             <Label htmlFor="senderBank">Nama Bank *</Label>
                             <Select
                               value={topupForm.sender_bank}
@@ -1513,7 +1513,7 @@ const Home = () => {
                                 </SelectItem>
                               </SelectContent>
                             </Select>
-                          </div>
+                          </div>*/}
 
                           {/* Sender Account Number */}
                           <div className="space-y-2">
