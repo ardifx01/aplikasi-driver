@@ -140,7 +140,7 @@ const VehicleBooking = ({
     ? selectedVehicle.price * rentalDuration
     : 0;
   const driverFee = 150000;
-  const gpsFee = 5000; // GPS fee of Rp 5,000
+  const gpsFee = 5000 * rentalDuration; // GPS fee of Rp 5,000 × rental days
 
   // Check if user can make booking (balance can go negative up to -500,000)
   useEffect(() => {
@@ -525,9 +525,9 @@ const VehicleBooking = ({
               booking_id: newBookingId,
               item_type: "gps",
               item_name: "GPS",
-              description: "GPS tracking device rental",
-              quantity: 1,
-              unit_price: gpsFee,
+              description: `GPS tracking device rental for ${rentalDuration} days`,
+              quantity: rentalDuration,
+              unit_price: 5000,
               total_price: gpsFee,
             });
 
