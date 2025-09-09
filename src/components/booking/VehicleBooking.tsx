@@ -120,12 +120,12 @@ const VehicleBooking = ({
 
   const calculateRentalDuration = () => {
     if (!pickupDate || !returnDate) return 1;
-    
+
     // For same-day rental, return 1 day
     if (pickupDate.toDateString() === returnDate.toDateString()) {
       return 1;
     }
-    
+
     // For multi-day rental, calculate difference + 1
     const diffTime = returnDate.getTime() - pickupDate.getTime();
     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
@@ -151,7 +151,8 @@ const VehicleBooking = ({
     if (!selectedVehicle) return 0;
     const vehicleCost = selectedVehicle.price * rentalDuration;
     const gpsCost = 5000 * rentalDuration;
-    const driverCost = driverOption === "with-driver" ? driverFee * rentalDuration : 0;
+    const driverCost =
+      driverOption === "with-driver" ? driverFee * rentalDuration : 0;
     return vehicleCost + gpsCost + driverCost;
   };
 
@@ -170,7 +171,7 @@ const VehicleBooking = ({
     if (pickupDate && returnDate) {
       const pickupTime = new Date(pickupDate);
       const returnTime = new Date(returnDate);
-      
+
       // Allow same date (end >= start instead of end > start)
       if (returnTime < pickupTime) {
         setTimeValidationError(
@@ -439,8 +440,8 @@ const VehicleBooking = ({
       const bookingData = {
         user_id: user.id,
         vehicle_id: selectedVehicle.id,
-        start_date: pickupDate.toISOString().split('T')[0],
-        end_date: returnDate.toISOString().split('T')[0],
+        start_date: pickupDate.toISOString().split("T")[0],
+        end_date: returnDate.toISOString().split("T")[0],
         start_time: startTime,
         end_time: returnTime,
         rental_days: rentalDuration,
@@ -457,6 +458,9 @@ const VehicleBooking = ({
       // Validate that we don't have any invalid column names
       const validColumns = [
         "vehicle_id",
+        "end_time",
+        "rental_days",
+        "driver_fee",
         "created_at",
         "created_at_tz",
         "updated_at",
@@ -902,7 +906,7 @@ const VehicleBooking = ({
                                 setReturnDateOpen(false);
                               }}
                               // Allow same-day return: minDate = pickupDate (not +1)
-                              disabled={(date) => 
+                              disabled={(date) =>
                                 !pickupDate || date < pickupDate
                               }
                               initialFocus
