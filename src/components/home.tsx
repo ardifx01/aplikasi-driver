@@ -79,9 +79,6 @@ const Home = () => {
     useState<NodeJS.Timeout | null>(null);
   const [topupForm, setTopupForm] = useState({
     amount: "",
-    sender_bank: "",
-    sender_account: "",
-    sender_name: "",
     destination_account: "",
     proof_url: null,
   });
@@ -149,16 +146,6 @@ const Home = () => {
             setDriverSaldo(saldoValue);
             setIsOnline(driverData.is_online || false);
 
-            // Auto-populate sender_name in topup form only if it's empty
-            setTopupForm((prev) => ({
-              ...prev,
-              sender_name:
-                prev.sender_name ||
-                driverData.name ||
-                driverData.full_name ||
-                "",
-            }));
-
             console.log(
               "✅ Home - Using driver data, saldo:",
               saldoValue,
@@ -203,13 +190,6 @@ const Home = () => {
               setUser(userData);
               setDriverSaldo(saldoValue);
               setIsOnline(false); // Default to offline for users table
-
-              // Auto-populate sender_name in topup form only if it's empty
-              setTopupForm((prev) => ({
-                ...prev,
-                sender_name:
-                  prev.sender_name || userData.full_name || userData.name || "",
-              }));
 
               console.log(
                 "✅ Home - Using user data, saldo:",
@@ -394,16 +374,13 @@ const Home = () => {
         userRole,
       );
 
-      // Insert topup request into database
+      // Insert topup request into database - only whitelisted fields
       const { data, error } = await supabase
         .from("topup_requests")
         .insert({
           user_id: sessionData.session.user.id,
           amount: parseFloat(topupForm.amount),
           bank_name: receivingBankName,
-          sender_bank: topupForm.sender_bank || "N/A", // Default value when bank selection is hidden
-          sender_account: topupForm.sender_account,
-          sender_name: topupForm.sender_name,
           destination_account: topupForm.destination_account,
           account_holder_received: selectedPaymentMethod?.account_holder || "",
           proof_url: proofUrl,
@@ -435,13 +412,9 @@ const Home = () => {
       });
 
       setTopupSuccess(true);
-      // Reset form but preserve sender_name
-      const currentSenderName = topupForm.sender_name;
+      // Reset form - only the whitelisted fields
       setTopupForm({
         amount: "",
-        sender_bank: "",
-        sender_account: "",
-        //  sender_name: currentSenderName, // Preserve the sender name
         destination_account: "",
         proof_url: null,
       });
@@ -1474,93 +1447,6 @@ const Home = () => {
                             </p>
                           </div>
 
-                          {/* Sender Bank - Temporarily Hidden */}
-                          {false && (
-                            <div className="space-y-2">
-                              <Label htmlFor="senderBank">Nama Bank *</Label>
-                              <Select
-                                value={topupForm.sender_bank}
-                                onValueChange={(value) =>
-                                  handleTopupInputChange("sender_bank", value)
-                                }
-                                required
-                                disabled={isTopupProcessing}
-                              >
-                                <SelectTrigger>
-                                  <SelectValue placeholder="Pilih Bank" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  <SelectItem value="BCA">BCA</SelectItem>
-                                  <SelectItem value="Mandiri">
-                                    Bank Mandiri
-                                  </SelectItem>
-                                  <SelectItem value="BNI">BNI</SelectItem>
-                                  <SelectItem value="BRI">BRI</SelectItem>
-                                  <SelectItem value="CIMB Niaga">
-                                    CIMB Niaga
-                                  </SelectItem>
-                                  <SelectItem value="Bank Danamon">
-                                    Bank Danamon
-                                  </SelectItem>
-                                  <SelectItem value="Bank Permata">
-                                    Bank Permata
-                                  </SelectItem>
-                                  <SelectItem value="OCBC NISP">
-                                    OCBC NISP
-                                  </SelectItem>
-                                  <SelectItem value="Maybank">
-                                    Maybank
-                                  </SelectItem>
-                                  <SelectItem value="Lainnya">
-                                    Bank Lainnya
-                                  </SelectItem>
-                                </SelectContent>
-                              </Select>
-                            </div>
-                          )}
-
-                          {/* Sender Account Number */}
-                          <div className="space-y-2">
-                            <Label htmlFor="senderAccount">
-                              Nomor Rekening *
-                            </Label>
-                            <Input
-                              id="senderAccount"
-                              type="text"
-                              placeholder="Masukkan nomor rekening"
-                              value={topupForm.sender_account}
-                              onChange={(e) =>
-                                handleTopupInputChange(
-                                  "sender_account",
-                                  e.target.value,
-                                )
-                              }
-                              required
-                              disabled={isTopupProcessing}
-                            />
-                          </div>
-
-                          {/* Sender Name */}
-                          <div className="space-y-2">
-                            <Label htmlFor="senderName">
-                              Nama Pemegang Rekening *
-                            </Label>
-                            <Input
-                              id="senderName"
-                              type="text"
-                              placeholder=""
-                              value={topupForm.sender_name}
-                              onChange={(e) =>
-                                handleTopupInputChange(
-                                  "sender_name",
-                                  e.target.value,
-                                )
-                              }
-                              required
-                              disabled={isTopupProcessing}
-                            />
-                          </div>
-
                           {/* Bank Penerima */}
                           <div className="space-y-3">
                             <Label>Bank Penerima *</Label>
@@ -1634,8 +1520,6 @@ const Home = () => {
                               isSubmittingTopup ||
                               isTopupProcessing ||
                               !topupForm.amount ||
-                              !topupForm.sender_account ||
-                              !topupForm.sender_name ||
                               !topupForm.destination_account ||
                               !topupForm.proof_url
                             }

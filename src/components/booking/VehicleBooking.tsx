@@ -876,11 +876,12 @@ const VehicleBooking = ({
                               }
                               setPickupDateOpen(false);
                             }}
-                            disabled={(date) => {
+                            disabled={() => false}
+                            /* disabled={(date) => {
                               const today = new Date();
                               today.setHours(0, 0, 0, 0); // reset jam ke 00:00
                               return date < today;
-                            }}
+                            }}*/
                             initialFocus
                           />
                         </PopoverContent>

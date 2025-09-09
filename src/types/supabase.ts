@@ -4646,9 +4646,7 @@ export type Database = {
           proof_url: string | null
           reference_no: string | null
           request_by_role: string | null
-          sender_account: string | null
           sender_bank: string | null
-          sender_name: string | null
           status: string
           user_id: string
           verified_at: string | null
@@ -4666,9 +4664,7 @@ export type Database = {
           proof_url?: string | null
           reference_no?: string | null
           request_by_role?: string | null
-          sender_account?: string | null
           sender_bank?: string | null
-          sender_name?: string | null
           status?: string
           user_id: string
           verified_at?: string | null
@@ -4686,9 +4682,7 @@ export type Database = {
           proof_url?: string | null
           reference_no?: string | null
           request_by_role?: string | null
-          sender_account?: string | null
           sender_bank?: string | null
-          sender_name?: string | null
           status?: string
           user_id?: string
           verified_at?: string | null
@@ -5695,29 +5689,46 @@ export type Database = {
       }
       v_topup_requests: {
         Row: {
+          account_holder_received: string | null
           amount: number | null
           bank_name: string | null
           created_at: string | null
           destination_account: string | null
           id: string | null
           method: string | null
-          note: string | null
           proof_url: string | null
           reference_no: string | null
           request_by_role: string | null
-          saldo_akhir: number | null
-          saldo_awal: number | null
-          sender_account: string | null
-          sender_bank: string | null
-          sender_name: string | null
           status: string | null
-          user_email: string | null
-          user_full_name: string | null
           user_id: string | null
-          verified_at: string | null
-          verified_by: string | null
-          verifier_email: string | null
-          verifier_full_name: string | null
+        }
+        Insert: {
+          account_holder_received?: string | null
+          amount?: number | null
+          bank_name?: string | null
+          created_at?: string | null
+          destination_account?: string | null
+          id?: string | null
+          method?: string | null
+          proof_url?: string | null
+          reference_no?: string | null
+          request_by_role?: string | null
+          status?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          account_holder_received?: string | null
+          amount?: number | null
+          bank_name?: string | null
+          created_at?: string | null
+          destination_account?: string | null
+          id?: string | null
+          method?: string | null
+          proof_url?: string | null
+          reference_no?: string | null
+          request_by_role?: string | null
+          status?: string | null
+          user_id?: string | null
         }
         Relationships: []
       }
