@@ -787,6 +787,7 @@ export type Database = {
           duration: number | null
           end_date: string | null
           id: string
+          is_backdated: boolean | null
           journal_entry_id: string | null
           license_plate: string | null
           make: string | null
@@ -842,6 +843,7 @@ export type Database = {
           duration?: number | null
           end_date?: string | null
           id?: string
+          is_backdated?: boolean | null
           journal_entry_id?: string | null
           license_plate?: string | null
           make?: string | null
@@ -897,6 +899,7 @@ export type Database = {
           duration?: number | null
           end_date?: string | null
           id?: string
+          is_backdated?: boolean | null
           journal_entry_id?: string | null
           license_plate?: string | null
           make?: string | null
