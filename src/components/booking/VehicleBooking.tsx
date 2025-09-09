@@ -140,12 +140,14 @@ const VehicleBooking = ({
     ? selectedVehicle.price * rentalDuration
     : 0;
   const driverFee = 150000;
+  const gpsFee = 5000; // GPS fee of Rp 5,000
 
   // Check if user can make booking (balance can go negative up to -500,000)
   useEffect(() => {
     if (selectedVehicle) {
       const calculatedTotal =
         selectedVehicle.price * rentalDuration +
+        gpsFee +
         (driverOption === "with-driver" ? driverFee * rentalDuration : 0);
       const balanceAfterBooking = userSaldo - calculatedTotal;
       // Allow booking if balance after booking is above -500,000
@@ -315,6 +317,7 @@ const VehicleBooking = ({
 
       const calculatedTotalAmount =
         totalPrice +
+        gpsFee +
         (driverOption === "with-driver"
           ? driverFee * calculateRentalDuration()
           : 0);
@@ -511,7 +514,32 @@ const VehicleBooking = ({
 
       if (error) throw error;
       if (data && data.length > 0) {
-        setBookingId(data[0].id);
+        const newBookingId = data[0].id;
+        setBookingId(newBookingId);
+
+        // Insert GPS fee as a booking item
+        try {
+          const { error: itemError } = await supabase
+            .from("booking_items")
+            .insert({
+              booking_id: newBookingId,
+              item_type: "gps",
+              item_name: "GPS",
+              description: "GPS tracking device rental",
+              quantity: 1,
+              unit_price: gpsFee,
+              total_price: gpsFee,
+            });
+
+          if (itemError) {
+            console.error("Error creating GPS booking item:", itemError);
+          } else {
+            console.log("GPS booking item created successfully");
+          }
+        } catch (itemError) {
+          console.error("Error creating GPS booking item:", itemError);
+        }
+
         setIsBookingSuccess(true);
       }
     } catch (error) {
@@ -1030,6 +1058,12 @@ const VehicleBooking = ({
                     </span>
                   </div>
                   <div className="flex justify-between mb-2">
+                    <span className="text-sm font-normal">GPS</span>
+                    <span className="text-sm font-normal">
+                      {formatCurrency(gpsFee, language)}
+                    </span>
+                  </div>
+                  <div className="flex justify-between mb-2">
                     <span className="text-sm font-normal">
                       {language === "id" ? "Saldo Anda" : "Your balance"}
                     </span>
@@ -1077,6 +1111,7 @@ const VehicleBooking = ({
                     <span className="text-sm font-bold">
                       {formatCurrency(
                         totalPrice +
+                          gpsFee +
                           (driverOption === "with-driver"
                             ? driverFee * rentalDuration
                             : 0),
@@ -1088,6 +1123,7 @@ const VehicleBooking = ({
                   {(() => {
                     const totalCost =
                       totalPrice +
+                      gpsFee +
                       (driverOption === "with-driver"
                         ? driverFee * rentalDuration
                         : 0);
