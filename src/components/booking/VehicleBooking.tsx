@@ -120,19 +120,23 @@ const VehicleBooking = ({
 
   const calculateRentalDuration = () => {
     if (!pickupDate || !returnDate) return 1;
-    const pickupTime = new Date(pickupDate);
-    const returnTime = new Date(returnDate);
-    const diffTime = Math.abs(returnTime.getTime() - pickupTime.getTime());
+    
+    // For same-day rental, return 1 day
+    if (pickupDate.toDateString() === returnDate.toDateString()) {
+      return 1;
+    }
+    
+    // For multi-day rental, calculate difference + 1
+    const diffTime = returnDate.getTime() - pickupDate.getTime();
     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-    return diffDays || 1;
+    return Math.max(1, diffDays + 1);
   };
 
-  // Calculate minimum return date (pickup date + 1 day)
+  // Calculate minimum return date (same as pickup date for same-day rental)
   const getMinReturnDate = () => {
     if (!pickupDate) return null;
-    const minDate = new Date(pickupDate);
-    minDate.setDate(minDate.getDate() + 1);
-    return minDate;
+    // Allow same-day return (minDate = startDate, not +1)
+    return new Date(pickupDate);
   };
 
   const rentalDuration = calculateRentalDuration();
@@ -142,27 +146,37 @@ const VehicleBooking = ({
   const driverFee = 150000;
   const gpsFee = 5000 * rentalDuration; // GPS fee of Rp 5,000 × rental days
 
+  // Total calculation: price*days + GPS_FEE*days
+  const calculateTotal = () => {
+    if (!selectedVehicle) return 0;
+    const vehicleCost = selectedVehicle.price * rentalDuration;
+    const gpsCost = 5000 * rentalDuration;
+    const driverCost = driverOption === "with-driver" ? driverFee * rentalDuration : 0;
+    return vehicleCost + gpsCost + driverCost;
+  };
+
   // Check if user can make booking (balance can go negative up to -500,000)
   useEffect(() => {
     if (selectedVehicle) {
-      const calculatedTotal =
-        selectedVehicle.price * rentalDuration +
-        gpsFee +
-        (driverOption === "with-driver" ? driverFee * rentalDuration : 0);
+      const calculatedTotal = calculateTotal();
       const balanceAfterBooking = userSaldo - calculatedTotal;
       // Allow booking if balance after booking is above -500,000
       setInsufficientFunds(balanceAfterBooking < -500000);
     }
   }, [selectedVehicle, rentalDuration, driverOption, userSaldo, driverFee]);
 
-  // Validate pickup and return times
+  // Validate pickup and return times - change validation to allow same date (end >= start)
   useEffect(() => {
-    if (pickupTime && returnTime) {
-      if (pickupTime !== returnTime) {
+    if (pickupDate && returnDate) {
+      const pickupTime = new Date(pickupDate);
+      const returnTime = new Date(returnDate);
+      
+      // Allow same date (end >= start instead of end > start)
+      if (returnTime < pickupTime) {
         setTimeValidationError(
           language === "id"
-            ? "Jam tidak sesuai, silahkan sesuaikan kembali"
-            : "Time mismatch, please adjust accordingly",
+            ? "Tanggal pengembalian tidak boleh lebih awal dari tanggal pengambilan"
+            : "Return date cannot be earlier than pickup date",
         );
         setIsTimeValid(false);
       } else {
@@ -170,7 +184,7 @@ const VehicleBooking = ({
         setIsTimeValid(true);
       }
     }
-  }, [pickupTime, returnTime, language]);
+  }, [pickupDate, returnDate, language]);
 
   // Fetch driver saldo from drivers table
   useEffect(() => {
@@ -315,12 +329,7 @@ const VehicleBooking = ({
         return;
       }
 
-      const calculatedTotalAmount =
-        totalPrice +
-        gpsFee +
-        (driverOption === "with-driver"
-          ? driverFee * calculateRentalDuration()
-          : 0);
+      const calculatedTotalAmount = calculateTotal();
 
       // Tambahkan fungsi ini sebelum bookingData
       const formatDateLocal = (date: Date) => {
@@ -428,42 +437,17 @@ const VehicleBooking = ({
 
       // Create booking data with only valid bookings table columns
       const bookingData = {
-        vehicle_id: selectedVehicle.id,
-        driver_option:
-          driverOption === "with-driver" ? "Driver Service" : "Self Drive",
-        vehicle_type: selectedVehicle.type || null,
-        vehicle_name:
-          selectedVehicle.name ||
-          `${selectedVehicle.make} ${selectedVehicle.model}` ||
-          "Unknown Vehicle",
-        make: selectedVehicle.make || null,
-        model: selectedVehicle.model || null,
-        license_plate: selectedVehicle.license_plate || null,
-        plate_number: selectedVehicle.plate_number || null,
-        booking_date: tomorrow.toISOString().split("T")[0],
-        start_time: startTime,
-        return_time: returnTime,
-        duration: calculateRentalDuration(),
-        status: "pending",
-        payment_status: "unpaid",
-        payment_method: paymentMethod,
-        total_amount: calculatedTotalAmount,
-        paid_amount: 0,
-        remaining_payments: calculatedTotalAmount,
-        start_date: pickupDate
-          ? formatDateLocal(pickupDate)
-          : formatDateLocal(tomorrow),
-        end_date: returnDate
-          ? formatDateLocal(returnDate)
-          : formatDateLocal(tomorrow),
         user_id: user.id,
-        // ===== DRIVERS_ID RE-ENABLED =====
-        driver_id: driverId, // Re-enabled to ensure driver_id is populated
-        name: driverName,
-        code_booking: bookingCode, // Add the generated booking code
-        created_at: getCurrentLocalTime(), // Set created_at with local timezone (Asia/Jakarta)
-        created_at_tz: getCurrentLocalTime(), // Set created_at_tz with local timezone (Asia/Jakarta)
-        updated_at: getCurrentLocalTime(), // Set updated_at with local timezone (Asia/Jakarta)
+        vehicle_id: selectedVehicle.id,
+        start_date: pickupDate.toISOString().split('T')[0],
+        end_date: returnDate.toISOString().split('T')[0],
+        start_time: startTime,
+        end_time: returnTime,
+        rental_days: rentalDuration,
+        total_amount: totalPrice + gpsFee, // price*days + GPS_fee*days
+        status: "pending",
+        payment_method: paymentMethod,
+        driver_fee: driverFee,
       };
       console.log("returnDate:", returnDate);
       console.log("Booking data to be inserted:", bookingData);
@@ -869,10 +853,8 @@ const VehicleBooking = ({
                             onSelect={(date) => {
                               if (date) {
                                 setPickupDate(date);
-                                // Auto-set return date to pickup date + 1 day
-                                const nextDay = new Date(date);
-                                nextDay.setDate(nextDay.getDate() + 1);
-                                setReturnDate(nextDay);
+                                // Auto-set return date to same date for same-day rental
+                                setReturnDate(date);
                               }
                               setPickupDateOpen(false);
                             }}
@@ -916,13 +898,13 @@ const VehicleBooking = ({
                               onSelect={(date) => {
                                 if (date) {
                                   setReturnDate(date);
-                                  setReturnDateOpen(false);
                                 }
+                                setReturnDateOpen(false);
                               }}
-                              disabled={(date) => {
-                                const minDate = getMinReturnDate();
-                                return !minDate || date < minDate;
-                              }}
+                              // Allow same-day return: minDate = pickupDate (not +1)
+                              disabled={(date) => 
+                                !pickupDate || date < pickupDate
+                              }
                               initialFocus
                             />
                           </PopoverContent>
@@ -1048,10 +1030,8 @@ const VehicleBooking = ({
                         ? "Biaya sewa kendaraan"
                         : "Vehicle rental fee"}
                     </span>
-                    <span className="text-sm font-normal">
-                      {selectedVehicle
-                        ? formatCurrency(selectedVehicle.price, language)
-                        : formatCurrency(0, language)}
+                    <span className="text-sm font-bold">
+                      {formatCurrency(calculateTotal(), language)}
                     </span>
                   </div>
                   <div className="flex justify-between mb-2">
@@ -1118,12 +1098,7 @@ const VehicleBooking = ({
                   </div>
                   {/* Balance after booking calculation */}
                   {(() => {
-                    const totalCost =
-                      totalPrice +
-                      gpsFee +
-                      (driverOption === "with-driver"
-                        ? driverFee * rentalDuration
-                        : 0);
+                    const totalCost = calculateTotal();
                     const balanceAfterBooking = userSaldo - totalCost;
                     const isNegativeBalance = balanceAfterBooking < 0;
                     const isOverLimit = balanceAfterBooking < -500000;

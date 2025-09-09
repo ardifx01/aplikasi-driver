@@ -87,6 +87,8 @@ const Home = () => {
   const [paymentMethods, setPaymentMethods] = useState([]);
   const [isTopupProcessing, setIsTopupProcessing] = useState(false);
   const [currentTopupId, setCurrentTopupId] = useState(null);
+  const [quickTopupAmount, setQuickTopupAmount] = useState("");
+  const [isQuickTopupLoading, setIsQuickTopupLoading] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -548,6 +550,68 @@ const Home = () => {
     }));
   };
 
+  const handleQuickTopup = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsQuickTopupLoading(true);
+
+    try {
+      if (!quickTopupAmount || parseFloat(quickTopupAmount) < 10000) {
+        toast({
+          title: "Error",
+          description: "Minimum top-up adalah Rp 10.000",
+          duration: 5000,
+          className: "bg-red-50 border-red-200",
+        });
+        return;
+      }
+
+      // Generate order ID
+      const orderId = `TOPDRIVER-${Date.now()}-${Math.floor(1000 + Math.random() * 9000)}`;
+
+      // Construct API URL
+      const apiUrl = `https://appserverv2.travelincars.com/api/pay-lab.php?amount=${quickTopupAmount}&customer=${encodeURIComponent(user?.name || "Driver")}&phone=${encodeURIComponent(user?.phone || "08123456789")}&order=${orderId}`;
+
+      // Open payment URL in new window
+      const paymentWindow = window.open(
+        apiUrl,
+        "_blank",
+        "width=600,height=700,scrollbars=yes,resizable=yes",
+      );
+
+      if (!paymentWindow) {
+        toast({
+          title: "Error",
+          description:
+            "Popup diblokir. Silakan izinkan popup untuk melanjutkan pembayaran.",
+          duration: 5000,
+          className: "bg-red-50 border-red-200",
+        });
+        return;
+      }
+
+      toast({
+        title: "Pembayaran Dibuka",
+        description:
+          "Silakan selesaikan pembayaran di jendela yang baru dibuka.",
+        duration: 5000,
+        className: "bg-blue-50 border-blue-200",
+      });
+
+      // Reset form
+      setQuickTopupAmount("");
+    } catch (error) {
+      console.error("Error processing quick topup:", error);
+      toast({
+        title: "Error",
+        description: "Terjadi kesalahan saat memproses pembayaran.",
+        duration: 5000,
+        className: "bg-red-50 border-red-200",
+      });
+    } finally {
+      setIsQuickTopupLoading(false);
+    }
+  };
+
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0] || null;
     handleTopupInputChange("proof_url", file);
@@ -969,6 +1033,7 @@ const Home = () => {
   const tabs = [
     { value: "booking", label: "Book Vehicle" },
     { value: "topup", label: "Topup" },
+    { value: "quick-topup", label: "Quick Topup" },
     { value: "topup-history", label: "Topup History" },
     { value: "transaction-history", label: "Riwayat Transaksi" },
     { value: "history", label: "Booking History" },
@@ -1067,6 +1132,14 @@ const Home = () => {
             >
               <DollarSign className="mr-2 h-4 w-4" />
               Topup
+            </Button>
+            <Button
+              variant={activeTab === "quick-topup" ? "default" : "ghost"}
+              className="w-full justify-start"
+              onClick={() => setActiveTab("quick-topup")}
+            >
+              <DollarSign className="mr-2 h-4 w-4" />
+              Quick Topup
             </Button>
             <Button
               variant={activeTab === "topup-history" ? "default" : "ghost"}
@@ -1348,6 +1421,84 @@ const Home = () => {
                   className="relative z-0 bg-white min-h-[240px]"
                 >
                   <TransactionHistory userId={user?.id} />
+                </TabsContent>
+
+                <TabsContent
+                  value="quick-topup"
+                  className="relative z-0 bg-white min-h-[240px]"
+                >
+                  <div className="max-w-2xl mx-auto p-6">
+                    <Card>
+                      <CardHeader>
+                        <CardTitle className="flex items-center gap-2">
+                          <DollarSign className="h-6 w-6 text-primary" />
+                          Quick Top-up
+                        </CardTitle>
+                        <CardDescription>
+                          Top-up saldo dengan cepat menggunakan pembayaran
+                          online.
+                        </CardDescription>
+                      </CardHeader>
+                      <CardContent>
+                        {/* Current Balance Display */}
+                        <div className="bg-muted p-4 rounded-lg mb-6">
+                          <p className="text-sm font-medium text-muted-foreground">
+                            Saldo Saat Ini:
+                          </p>
+                          <p className="text-2xl font-bold text-primary">
+                            Rp{" "}
+                            {(() => {
+                              const saldoValue =
+                                typeof driverSaldo === "number"
+                                  ? driverSaldo
+                                  : 0;
+                              return saldoValue.toLocaleString();
+                            })()}
+                          </p>
+                        </div>
+
+                        {/* Quick Topup Form */}
+                        <form onSubmit={handleQuickTopup} className="space-y-6">
+                          {/* Amount Field */}
+                          <div className="space-y-2">
+                            <Label htmlFor="quickAmount">Jumlah Top-up *</Label>
+                            <Input
+                              id="quickAmount"
+                              type="number"
+                              placeholder="Masukkan jumlah"
+                              value={quickTopupAmount}
+                              onChange={(e) =>
+                                setQuickTopupAmount(e.target.value)
+                              }
+                              required
+                              min="10000"
+                              step="1000"
+                              disabled={isQuickTopupLoading}
+                            />
+                            <p className="text-xs text-muted-foreground">
+                              Minimum top-up Rp 10.000
+                            </p>
+                          </div>
+
+                          {/* Submit Button */}
+                          <Button
+                            type="submit"
+                            className="w-full"
+                            disabled={isQuickTopupLoading || !quickTopupAmount}
+                          >
+                            {isQuickTopupLoading ? (
+                              <>
+                                <div className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-background border-t-transparent"></div>
+                                Memproses...
+                              </>
+                            ) : (
+                              "Bayar Sekarang"
+                            )}
+                          </Button>
+                        </form>
+                      </CardContent>
+                    </Card>
+                  </div>
                 </TabsContent>
 
                 <TabsContent
@@ -1717,6 +1868,17 @@ const Home = () => {
                     Topup
                   </Button>
                   <Button
+                    variant={activeTab === "quick-topup" ? "default" : "ghost"}
+                    className="w-full justify-start"
+                    onClick={() => {
+                      setActiveTab("quick-topup");
+                      setShowNotifications(false);
+                    }}
+                  >
+                    <DollarSign className="mr-2 h-4 w-4" />
+                    Quick Topup
+                  </Button>
+                  <Button
                     variant={
                       activeTab === "topup-history" ? "default" : "ghost"
                     }
@@ -1840,9 +2002,9 @@ const Home = () => {
               </Button>
               <Button
                 variant="ghost"
-                className={`flex flex-col items-center justify-center rounded-md p-2 ${activeTab === "topup" ? "bg-muted" : ""}`}
+                className={`flex flex-col items-center justify-center rounded-md p-2 ${activeTab === "quick-topup" ? "bg-muted" : ""}`}
                 onClick={() => {
-                  setActiveTab("topup");
+                  setActiveTab("quick-topup");
                 }}
               >
                 <DollarSign className="h-5 w-5" />

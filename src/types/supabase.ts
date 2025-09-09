@@ -5770,6 +5770,10 @@ export type Database = {
         Args: Record<PropertyKey, never>
         Returns: undefined
       }
+      calculate_rental_days: {
+        Args: { end_date: string; start_date: string }
+        Returns: number
+      }
       close_period: {
         Args: { p_period: string }
         Returns: undefined
